@@ -5,8 +5,11 @@ import {
   AuthToken,
   GizwitsBindingsResponse,
   GizwitsDeviceStatusResponse,
-  HeatzyMode,
 } from '@/types';
+
+// GizWits platform constants (public values, documented in Heatzy OpenAPI)
+const GIZWITS_BASE_URL = 'https://euapi.gizwits.com';
+const GIZWITS_APP_ID = 'c70a66ff039d41b4a220e198b0fcc8b3';
 
 class ApiError extends Error {
   constructor(
@@ -18,54 +21,79 @@ class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const auth = getStoredToken();
+function gizwitsHeaders(userToken?: string): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    Accept: 'application/json',
+    'X-Gizwits-Application-Id': GIZWITS_APP_ID,
   };
-  if (auth?.token) {
-    headers['x-user-token'] = auth.token;
-  }
+  if (userToken) headers['X-Gizwits-User-token'] = userToken;
+  return headers;
+}
 
-  const res = await fetch(path, { ...options, headers });
+async function gizwitsFetch<T>(
+  path: string,
+  options: RequestInit = {},
+  userToken?: string
+): Promise<T> {
+  const res = await fetch(`${GIZWITS_BASE_URL}${path}`, {
+    ...options,
+    headers: gizwitsHeaders(userToken),
+  });
 
   if (res.status === 401) {
-    // Redirect to login — token expired
-    if (typeof window !== 'undefined') window.location.href = '/login';
-    throw new ApiError(401, 'Session expired');
+    if (typeof window !== 'undefined') {
+      const base = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+      window.location.href = `${base}/login`;
+    }
+    throw new ApiError(401, 'Session expirée');
   }
 
   if (!res.ok) {
     const text = await res.text();
-    throw new ApiError(res.status, text || `Request failed: ${res.status}`);
+    throw new ApiError(res.status, text || `Erreur ${res.status}`);
   }
 
   const text = await res.text();
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+function getToken(): string | undefined {
+  return getStoredToken()?.token;
+}
+
 export const api = {
   login: (username: string, password: string) =>
-    apiFetch<AuthToken>('/api/auth/login', {
+    gizwitsFetch<AuthToken>('/app/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, lang: 'en' }),
     }),
 
-  getDevices: () => apiFetch<GizwitsBindingsResponse>('/api/devices'),
+  getDevices: () =>
+    gizwitsFetch<GizwitsBindingsResponse>(
+      '/app/bindings?limit=20&skip=0',
+      {},
+      getToken()
+    ),
 
   getDeviceStatus: (did: string) =>
-    apiFetch<GizwitsDeviceStatusResponse>(`/api/devices/${did}/status`),
+    gizwitsFetch<GizwitsDeviceStatusResponse>(
+      `/app/devdata/${did}/latest`,
+      {},
+      getToken()
+    ),
 
   controlDevice: (did: string, payload: { attrs: Record<string, unknown> }) =>
-    apiFetch<{ ok: boolean }>(`/api/devices/${did}/control`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+    gizwitsFetch<Record<string, never>>(
+      `/app/control/${did}`,
+      { method: 'POST', body: JSON.stringify(payload) },
+      getToken()
+    ),
 
   renameDevice: (did: string, name: string) =>
-    apiFetch<{ ok: boolean }>(`/api/devices/${did}/rename`, {
-      method: 'PUT',
-      body: JSON.stringify({ name }),
-    }),
+    gizwitsFetch<Record<string, never>>(
+      `/app/bindings/${did}`,
+      { method: 'PUT', body: JSON.stringify({ dev_alias: name }) },
+      getToken()
+    ),
 };
