@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, ReactNode } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -31,10 +32,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Navbar */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🌡</span>
-            <span className="font-bold text-gray-900 text-lg">Heatzy Dashboard</span>
-          </div>
+          <Image
+            src="/heatzy-logo.png"
+            alt="Heatzy"
+            height={36}
+            width={108}
+            className="h-9 w-auto"
+            priority
+          />
           <div className="flex items-center gap-3">
             {isExpiringSoon && (
               <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
