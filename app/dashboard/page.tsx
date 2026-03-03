@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import { useDevices } from '@/hooks/useDevices';
 import { useZones } from '@/hooks/useZones';
 import { DeviceGrid } from '@/components/dashboard/DeviceGrid';
@@ -11,6 +12,7 @@ export default function DashboardPage() {
   const { devices, loading, error, fetchDevices, updateDeviceMode, updateDeviceName } =
     useDevices();
   const { zones, addZone, renameZone, removeZone, setZoneDevices, setZoneSchedule } = useZones();
+  const [refreshed, setRefreshed] = useState(false);
 
   const handleRenameZone = (id: string, name: string) => {
     renameZone(id, name);
@@ -19,6 +21,12 @@ export default function DashboardPage() {
   const handleUpdateZoneDevices = (id: string, deviceIds: string[]) => {
     setZoneDevices(id, deviceIds);
   };
+
+  const handleRefresh = useCallback(async () => {
+    await fetchDevices();
+    setRefreshed(true);
+    setTimeout(() => setRefreshed(false), 2000);
+  }, [fetchDevices]);
 
   return (
     <div className="space-y-10">
@@ -33,8 +41,8 @@ export default function DashboardPage() {
               </span>
             )}
           </h2>
-          <Button variant="secondary" size="sm" onClick={fetchDevices} disabled={loading}>
-            ↺ Actualiser
+          <Button variant="secondary" size="sm" onClick={handleRefresh} disabled={loading}>
+            {loading ? '…' : refreshed ? '✓ À jour' : '↺ Actualiser'}
           </Button>
         </div>
         <DeviceGrid
