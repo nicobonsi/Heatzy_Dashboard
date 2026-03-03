@@ -13,7 +13,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 
 // After a manual mode change, suppress poll-driven updates for this long.
-// Prevents the 30 s poller from reverting the UI before the device
+// Prevents the poller from reverting the UI before the device
 // has propagated the new state back to the cloud.
 const POLL_SUPPRESS_MS = 20_000;
 
@@ -53,7 +53,7 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
     [device.did, onModeUpdate, onOnlineUpdate]
   );
 
-  useDeviceStatus(device.did, handleStatusUpdate, 30_000);
+  useDeviceStatus(device.did, handleStatusUpdate, 10_000);
 
   const handleModeChange = useCallback(async (mode: HeatzyMode) => {
     if (!isOnline) {

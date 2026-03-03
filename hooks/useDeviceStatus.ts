@@ -58,9 +58,34 @@ export function useDeviceStatus(
   }, [did]);
 
   useEffect(() => {
-    fetchStatus();
-    const id = setInterval(fetchStatus, intervalMs);
-    return () => clearInterval(id);
+    // Don't poll when the tab is hidden — resume + immediate fetch on visibility
+    if (typeof document === 'undefined') return;
+
+    let id: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      fetchStatus();
+      id = setInterval(fetchStatus, intervalMs);
+    };
+
+    const stop = () => {
+      if (id !== null) { clearInterval(id); id = null; }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+      } else {
+        start();
+      }
+    };
+
+    if (document.visibilityState !== 'hidden') start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [fetchStatus, intervalMs]);
 
   return { refetch: fetchStatus };
