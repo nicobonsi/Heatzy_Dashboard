@@ -13,6 +13,7 @@ export default function DashboardPage() {
     useDevices();
   const { zones, addZone, renameZone, removeZone, setZoneDevices, setZoneSchedule } = useZones();
   const [refreshed, setRefreshed] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleRenameZone = (id: string, name: string) => {
     renameZone(id, name);
@@ -24,6 +25,7 @@ export default function DashboardPage() {
 
   const handleRefresh = useCallback(async () => {
     await fetchDevices();
+    setRefreshKey((k) => k + 1); // tell DeviceCards to trust fresh device.currentMode
     setRefreshed(true);
     setTimeout(() => setRefreshed(false), 2000);
   }, [fetchDevices]);
@@ -49,6 +51,7 @@ export default function DashboardPage() {
           devices={devices}
           loading={loading}
           error={error}
+          refreshKey={refreshKey}
           onModeUpdate={updateDeviceMode}
           onNameUpdate={updateDeviceName}
         />

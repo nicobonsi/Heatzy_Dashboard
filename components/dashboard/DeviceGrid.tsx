@@ -8,11 +8,12 @@ interface Props {
   devices: Device[];
   loading: boolean;
   error: string | null;
+  refreshKey: number;
   onModeUpdate: (did: string, mode: HeatzyMode) => void;
   onNameUpdate: (did: string, name: string) => void;
 }
 
-export function DeviceGrid({ devices, loading, error, onModeUpdate, onNameUpdate }: Props) {
+export function DeviceGrid({ devices, loading, error, refreshKey, onModeUpdate, onNameUpdate }: Props) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40 gap-3 text-gray-500">
@@ -47,6 +48,7 @@ export function DeviceGrid({ devices, loading, error, onModeUpdate, onNameUpdate
         <DeviceCard
           key={device.did}
           device={device}
+          refreshKey={refreshKey}
           onModeUpdate={onModeUpdate}
           onNameUpdate={onNameUpdate}
         />
