@@ -27,9 +27,11 @@ interface Props {
 export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate }: Props) {
   // In-flight optimistic mode (while API call is pending)
   const [pendingMode, setPendingMode] = useState<HeatzyMode | null>(null);
-  // Last mode we confirmed sending — displayed for POLL_SUPPRESS_MS to block stale polls
+  // Last mode we confirmed sending — displayed to block stale polls
   const [localMode, setLocalMode]     = useState<HeatzyMode | null>(null);
   const localModeSetAt                = useRef<number>(0);
+  // What was showing just before we sent a command (used to detect stale API echoes)
+  const preSentModeRef                = useRef<HeatzyMode | null>(null);
   const [isOnline, setIsOnline]       = useState(device.isOnline);
   const [showSchedule, setShowSchedule] = useState(false);
   const { showToast } = useToast();
@@ -39,16 +41,27 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
   // Priority: pending (API in-flight) → local (recently confirmed) → polled
   const displayMode = pendingMode ?? localMode ?? device.currentMode;
 
+  // Keep a ref so handleModeChange can read the current displayMode without a stale closure
+  const displayModeRef = useRef(displayMode);
+  displayModeRef.current = displayMode;
+
   const handleStatusUpdate = useCallback(
     ({ mode, isOnline: online }: DeviceStatusUpdate) => {
-      setIsOnline(online);
-      onOnlineUpdate?.(device.did, online);
-
-      // Only accept the polled mode once the suppress window has elapsed
-      if (Date.now() - localModeSetAt.current >= POLL_SUPPRESS_MS) {
-        setLocalMode(null);
-        onModeUpdate(device.did, mode);
+      // Only update online status if the API actually returned the field
+      if (online !== undefined) {
+        setIsOnline(online);
+        onOnlineUpdate?.(device.did, online);
       }
+
+      const withinWindow = Date.now() - localModeSetAt.current < POLL_SUPPRESS_MS;
+      if (withinWindow && preSentModeRef.current !== null) {
+        // Stale echo: API is still returning the old mode before our command propagated → suppress
+        if (mode === preSentModeRef.current) return;
+        // Otherwise: command confirmed OR physical change → accept it and clear the window early
+        localModeSetAt.current = 0;
+      }
+      setLocalMode(null);
+      onModeUpdate(device.did, mode);
     },
     [device.did, onModeUpdate, onOnlineUpdate]
   );
@@ -59,15 +72,20 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
     if (!isOnline) {
       showToast('info', `${device.name} est hors ligne — commande mise en file d'attente`);
     }
+    // Capture what was displaying before sending, so we can suppress the stale echo
+    preSentModeRef.current = displayModeRef.current;
     setPendingMode(mode);
     try {
       await api.controlDevice(device.did, { attrs: { mode } });
-      // Lock in the new mode and start the suppress window
+      // Lock in the new mode and open the suppress window
       setLocalMode(mode);
       localModeSetAt.current = Date.now();
       onModeUpdate(device.did, mode);
     } catch {
       showToast('error', `Erreur de changement de mode pour ${device.name}`);
+      // Command failed — clear refs so polls go through unimpeded
+      preSentModeRef.current = null;
+      localModeSetAt.current = 0;
     } finally {
       setPendingMode(null);
     }

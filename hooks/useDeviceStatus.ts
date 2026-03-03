@@ -6,7 +6,7 @@ import { api } from '@/lib/api/client';
 
 export interface DeviceStatusUpdate {
   mode: HeatzyMode;
-  isOnline: boolean;
+  isOnline?: boolean; // undefined when the devdata endpoint doesn't return this field
   proAttrs?: PiloteProAttrs;
 }
 
@@ -44,11 +44,12 @@ export function useDeviceStatus(
       const data = await api.getDeviceStatus(did);
       const attr = (data.attr ?? {}) as Record<string, unknown>;
       const mode = attr.mode as HeatzyMode | undefined;
-      const isOnline = (data as unknown as { is_online?: boolean }).is_online ?? false;
+      // is_online is not returned by /app/devdata — only include it if present
+      const isOnlineRaw = (data as unknown as { is_online?: boolean }).is_online;
       if (mode) {
         callbackRef.current({
           mode,
-          isOnline,
+          ...(isOnlineRaw !== undefined && { isOnline: isOnlineRaw }),
           proAttrs: extractProAttrs(attr),
         });
       }
