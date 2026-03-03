@@ -3,6 +3,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { HeatzyMode, PiloteProAttrs, DerogationMode } from '@/types';
 import { api } from '@/lib/api/client';
+import { wsManager } from '@/lib/wsManager';
 
 export interface DeviceStatusUpdate {
   mode: HeatzyMode;
@@ -88,6 +89,17 @@ export function useDeviceStatus(
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [fetchStatus, intervalMs]);
+
+  // WebSocket: real-time push updates (same path as polling → suppress logic applies)
+  useEffect(() => {
+    const unsubscribe = wsManager?.subscribe(did, (attr) => {
+      const mode = attr.mode as HeatzyMode | undefined;
+      if (mode) {
+        callbackRef.current({ mode, proAttrs: extractProAttrs(attr) });
+      }
+    });
+    return unsubscribe;
+  }, [did]);
 
   return { refetch: fetchStatus };
 }
