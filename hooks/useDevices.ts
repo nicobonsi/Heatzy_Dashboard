@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Device, GizwitsDevice, HeatzyMode } from '@/types';
+import { Device, GizwitsDevice, HeatzyMode, PiloteProAttrs } from '@/types';
 import { api } from '@/lib/api/client';
 import { getDeviceNameOverride } from '@/lib/auth';
 
@@ -15,6 +15,7 @@ function mapDevice(raw: GizwitsDevice): Device {
     currentMode: null,
     productName: raw.product_name,
     productKey: raw.product_key,
+    proAttrs: undefined,
   };
 }
 
@@ -53,5 +54,16 @@ export function useDevices() {
     );
   }, []);
 
-  return { devices, loading, error, fetchDevices, updateDeviceMode, updateDeviceName };
+  const updateDeviceStatus = useCallback(
+    (did: string, mode: HeatzyMode, isOnline: boolean, proAttrs?: PiloteProAttrs) => {
+      setDevices((prev) =>
+        prev.map((d) =>
+          d.did === did ? { ...d, currentMode: mode, isOnline, proAttrs: proAttrs ?? d.proAttrs } : d
+        )
+      );
+    },
+    []
+  );
+
+  return { devices, loading, error, fetchDevices, updateDeviceMode, updateDeviceName, updateDeviceStatus };
 }

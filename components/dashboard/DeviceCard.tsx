@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Device, HeatzyMode } from '@/types';
+import { Device, HeatzyMode, isPilotePro } from '@/types';
 import { StatusBadge } from '@/components/device/StatusBadge';
 import { ModeSelector } from '@/components/device/ModeSelector';
+import { PiloteProPanel } from '@/components/device/PiloteProPanel';
 import { DeviceNameEditor } from '@/components/device/DeviceNameEditor';
 import { ScheduleModal } from '@/components/schedule/ScheduleModal';
-import { useDeviceStatus } from '@/hooks/useDeviceStatus';
+import { useDeviceStatus, DeviceStatusUpdate } from '@/hooks/useDeviceStatus';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
@@ -19,13 +20,15 @@ interface Props {
 }
 
 export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate }: Props) {
-  const [pendingMode, setPendingMode] = useState<HeatzyMode | null>(null);
-  const [isOnline, setIsOnline] = useState(device.isOnline);
+  const [pendingMode, setPendingMode]   = useState<HeatzyMode | null>(null);
+  const [isOnline, setIsOnline]         = useState(device.isOnline);
   const [showSchedule, setShowSchedule] = useState(false);
   const { showToast } = useToast();
 
+  const pro = isPilotePro(device);
+
   const handleStatusUpdate = useCallback(
-    (mode: HeatzyMode, online: boolean) => {
+    ({ mode, isOnline: online }: DeviceStatusUpdate) => {
       onModeUpdate(device.did, mode);
       setIsOnline(online);
       onOnlineUpdate?.(device.did, online);
@@ -35,9 +38,7 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
 
   useDeviceStatus(device.did, handleStatusUpdate, 30000);
 
-  const displayMode = pendingMode ?? device.currentMode;
-
-  const handleModeChange = async (mode: HeatzyMode) => {
+  const handleModeChange = useCallback(async (mode: HeatzyMode) => {
     if (!isOnline) {
       showToast('info', `${device.name} est hors ligne — commande mise en file d'attente`);
     }
@@ -46,16 +47,17 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
       await api.controlDevice(device.did, { attrs: { mode } });
       onModeUpdate(device.did, mode);
     } catch {
-      showToast('error', `Erreur lors du changement de mode pour ${device.name}`);
-      setPendingMode(null);
+      showToast('error', `Erreur de changement de mode pour ${device.name}`);
     } finally {
       setPendingMode(null);
     }
-  };
+  }, [device.did, device.name, isOnline, onModeUpdate, showToast]);
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col gap-3">
+      <div className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col gap-3 ${
+        pro ? 'border-indigo-200' : 'border-gray-200'
+      }`}>
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -69,22 +71,44 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
           <StatusBadge isOnline={isOnline} />
         </div>
 
-        {/* Product type */}
-        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
-          {device.productName}
-        </p>
-
-        {/* Mode selector */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Mode :</p>
-          <ModeSelector
-            current={displayMode}
-            onChange={handleModeChange}
-            disabled={!!pendingMode}
-          />
+        {/* Product badge + live temp for Pro */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-xs font-medium uppercase tracking-wide px-2 py-0.5 rounded-full ${
+            pro ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'
+          }`}>
+            {pro ? '⭐ Pilote Pro' : device.productName}
+          </span>
+          {pro && device.proAttrs?.cur_temp !== undefined && (
+            <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+              🌡 {(device.proAttrs.cur_temp / 10).toFixed(1)} °C
+            </span>
+          )}
+          {pro && device.proAttrs?.cur_humi !== undefined && (
+            <span className="text-xs bg-teal-50 text-teal-600 px-2 py-0.5 rounded-full font-medium">
+              💧 {device.proAttrs.cur_humi} %
+            </span>
+          )}
         </div>
 
-        {/* Actions */}
+        {/* Controls — Pro gets full panel, basic Pilote gets simple mode selector */}
+        {pro ? (
+          <PiloteProPanel
+            device={device}
+            pendingMode={pendingMode}
+            onModeChange={handleModeChange}
+          />
+        ) : (
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Mode :</p>
+            <ModeSelector
+              current={pendingMode ?? device.currentMode}
+              onChange={handleModeChange}
+              disabled={!!pendingMode}
+            />
+          </div>
+        )}
+
+        {/* Schedule */}
         <div className="pt-1 border-t border-gray-100">
           <Button
             variant="ghost"
@@ -92,7 +116,7 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
             onClick={() => setShowSchedule(true)}
             className="text-gray-500 hover:text-blue-600"
           >
-            📅 Planning
+            📅 Planning hebdomadaire
           </Button>
         </div>
       </div>
