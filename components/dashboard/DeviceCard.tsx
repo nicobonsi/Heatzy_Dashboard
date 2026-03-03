@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Device, HeatzyMode, isPilotePro } from '@/types';
 import { StatusBadge } from '@/components/device/StatusBadge';
 import { ModeSelector } from '@/components/device/ModeSelector';
@@ -12,6 +12,11 @@ import { api } from '@/lib/api/client';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 
+// After a manual mode change, suppress poll-driven updates for this long.
+// Prevents the 30 s poller from reverting the UI before the device
+// has propagated the new state back to the cloud.
+const POLL_SUPPRESS_MS = 20_000;
+
 interface Props {
   device: Device;
   onModeUpdate: (did: string, mode: HeatzyMode) => void;
@@ -20,23 +25,35 @@ interface Props {
 }
 
 export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate }: Props) {
-  const [pendingMode, setPendingMode]   = useState<HeatzyMode | null>(null);
-  const [isOnline, setIsOnline]         = useState(device.isOnline);
+  // In-flight optimistic mode (while API call is pending)
+  const [pendingMode, setPendingMode] = useState<HeatzyMode | null>(null);
+  // Last mode we confirmed sending — displayed for POLL_SUPPRESS_MS to block stale polls
+  const [localMode, setLocalMode]     = useState<HeatzyMode | null>(null);
+  const localModeSetAt                = useRef<number>(0);
+  const [isOnline, setIsOnline]       = useState(device.isOnline);
   const [showSchedule, setShowSchedule] = useState(false);
   const { showToast } = useToast();
 
   const pro = isPilotePro(device);
 
+  // Priority: pending (API in-flight) → local (recently confirmed) → polled
+  const displayMode = pendingMode ?? localMode ?? device.currentMode;
+
   const handleStatusUpdate = useCallback(
     ({ mode, isOnline: online }: DeviceStatusUpdate) => {
-      onModeUpdate(device.did, mode);
       setIsOnline(online);
       onOnlineUpdate?.(device.did, online);
+
+      // Only accept the polled mode once the suppress window has elapsed
+      if (Date.now() - localModeSetAt.current >= POLL_SUPPRESS_MS) {
+        setLocalMode(null);
+        onModeUpdate(device.did, mode);
+      }
     },
     [device.did, onModeUpdate, onOnlineUpdate]
   );
 
-  useDeviceStatus(device.did, handleStatusUpdate, 30000);
+  useDeviceStatus(device.did, handleStatusUpdate, 30_000);
 
   const handleModeChange = useCallback(async (mode: HeatzyMode) => {
     if (!isOnline) {
@@ -45,6 +62,9 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
     setPendingMode(mode);
     try {
       await api.controlDevice(device.did, { attrs: { mode } });
+      // Lock in the new mode and start the suppress window
+      setLocalMode(mode);
+      localModeSetAt.current = Date.now();
       onModeUpdate(device.did, mode);
     } catch {
       showToast('error', `Erreur de changement de mode pour ${device.name}`);
@@ -71,12 +91,12 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
           <StatusBadge isOnline={isOnline} />
         </div>
 
-        {/* Product badge + live temp for Pro */}
+        {/* Product badge + live readings for Pro */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs font-medium uppercase tracking-wide px-2 py-0.5 rounded-full ${
             pro ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'
           }`}>
-            {pro ? '⭐ Pilote Pro' : device.productName}
+            {pro ? '⭐ Pilote Pro' : 'Heatzy Pilote'}
           </span>
           {pro && device.proAttrs?.cur_temp !== undefined && (
             <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
@@ -90,7 +110,7 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
           )}
         </div>
 
-        {/* Controls — Pro gets full panel, basic Pilote gets simple mode selector */}
+        {/* Controls */}
         {pro ? (
           <PiloteProPanel
             device={device}
@@ -101,7 +121,7 @@ export function DeviceCard({ device, onModeUpdate, onNameUpdate, onOnlineUpdate 
           <div>
             <p className="text-xs text-gray-500 mb-1">Mode :</p>
             <ModeSelector
-              current={pendingMode ?? device.currentMode}
+              current={displayMode}
               onChange={handleModeChange}
               disabled={!!pendingMode}
             />

@@ -50,7 +50,7 @@ export function useSchedule(did: string) {
   const saveSchedule = useCallback(async () => {
     setSaving(true);
     try {
-      const encoded = encodeWeekSchedule(schedule);
+      const encoded: Record<string, unknown> = encodeWeekSchedule(schedule);
       await api.controlDevice(did, { attrs: encoded });
     } finally {
       setSaving(false);

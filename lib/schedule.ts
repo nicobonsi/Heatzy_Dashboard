@@ -1,7 +1,12 @@
 import { ScheduleMode, WeekSchedule } from '@/types';
 
-// Mode → 2-bit encoding for schedule slots
-// 00 = Confort, 01 = Eco, 10 = Hors Gel
+// ── Bit encoding ────────────────────────────────────────────────────────────
+// Official Heatzy OpenAPI format (pX_dataY):
+//   key  = p{day}_data{slot}   day=1-7 (Mon-Sun), slot=1-12 (00h-02h … 22h-24h)
+//   value = one byte encoding 4 × 30-min sub-slots (MSB first):
+//           bits [7:6] sub-slot 1, [5:4] sub-slot 2, [3:2] sub-slot 3, [1:0] sub-slot 4
+//           00 = Confort  01 = Éco  10 = Hors-Gel  11 = Arrêt (→ treated as Hors-Gel)
+
 const MODE_TO_BITS: Record<ScheduleMode, number> = {
   cft: 0b00,
   eco: 0b01,
@@ -12,71 +17,61 @@ const BITS_TO_MODE: Record<number, ScheduleMode> = {
   0b00: 'cft',
   0b01: 'eco',
   0b10: 'fro',
-  0b11: 'fro', // treat stop as frost-protection in schedule context
+  0b11: 'fro',
 };
 
-// Each API day slot = 12 values (one per 2-hour block: 00-02, 02-04, ..., 22-24)
-// Each value is a byte encoding 4 × 30-min sub-slots in pairs of bits (MSB first)
-// Bits [7:6] = sub-slot 1 (earliest), [5:4] = sub-slot 2, [3:2] = sub-slot 3, [1:0] = sub-slot 4
-
-export function decodeDay(rawDay: number[]): ScheduleMode[] {
-  const hours: ScheduleMode[] = [];
-  for (let slot = 0; slot < 12; slot++) {
-    const byte = rawDay[slot] ?? 0;
-    // Take the dominant mode from bits [7:6]
-    const modeBits = (byte >> 6) & 0b11;
-    const mode = BITS_TO_MODE[modeBits] ?? 'cft';
-    // Each slot = 2 hours
-    hours.push(mode, mode);
-  }
-  return hours; // length 24
+function byteToMode(byte: number): ScheduleMode {
+  return BITS_TO_MODE[(byte >> 6) & 0b11] ?? 'eco';
 }
 
-export function encodeDay(hours: ScheduleMode[]): number[] {
-  const slots: number[] = [];
-  for (let slot = 0; slot < 12; slot++) {
-    const hour = slot * 2;
-    const mode = hours[hour] ?? 'eco';
-    const bits = MODE_TO_BITS[mode] ?? 0;
-    // All 4 sub-slots set to the same mode
-    const byte = (bits << 6) | (bits << 4) | (bits << 2) | bits;
-    slots.push(byte);
-  }
-  return slots; // length 12
+function modeToByte(mode: ScheduleMode): number {
+  const bits = MODE_TO_BITS[mode] ?? 0b01;
+  return (bits << 6) | (bits << 4) | (bits << 2) | bits;
 }
 
-// rawWeek: { P0: number[], P1: number[], ..., P6: number[] } (Mon=P0 ... Sun=P6)
-export function decodeWeekSchedule(rawWeek: Record<string, unknown>): WeekSchedule {
-  const days: WeekSchedule = [];
+// ── Decode ───────────────────────────────────────────────────────────────────
+// Reads the flat attr object (as returned by GET /app/devdata/{did}/latest)
+// and returns a WeekSchedule[day 0-6][hour 0-23].
+export function decodeWeekSchedule(attrs: Record<string, unknown>): WeekSchedule {
+  return Array.from({ length: 7 }, (_, d) =>
+    Array.from({ length: 12 }, (__, slot) => {
+      const key = `p${d + 1}_data${slot + 1}`;
+      const byte = typeof attrs[key] === 'number' ? (attrs[key] as number) : 0;
+      return byteToMode(byte);
+    }).flatMap((mode) => [mode, mode]) // each 2-hour slot → 2 × hourly cells
+  );
+}
+
+// ── Encode ───────────────────────────────────────────────────────────────────
+// Converts a WeekSchedule to the flat pX_dataY dict sent via POST /app/control/{did}.
+// Returns Record<string, number> — one integer per key.
+export function encodeWeekSchedule(schedule: WeekSchedule): Record<string, number> {
+  const result: Record<string, number> = {};
   for (let d = 0; d < 7; d++) {
-    const key = `P${d}`;
-    const rawDay = Array.isArray(rawWeek[key]) ? (rawWeek[key] as number[]) : new Array(12).fill(0);
-    days.push(decodeDay(rawDay));
-  }
-  return days;
-}
-
-export function encodeWeekSchedule(schedule: WeekSchedule): Record<string, number[]> {
-  const result: Record<string, number[]> = {};
-  for (let d = 0; d < 7; d++) {
-    result[`P${d}`] = encodeDay(schedule[d]);
+    for (let slot = 0; slot < 12; slot++) {
+      // Use the first of the two hours in each 2-hour slot
+      const mode = schedule[d][slot * 2] ?? 'eco';
+      result[`p${d + 1}_data${slot + 1}`] = modeToByte(mode);
+    }
   }
   return result;
 }
 
+// ── Defaults ─────────────────────────────────────────────────────────────────
 export function createDefaultWeekSchedule(): WeekSchedule {
   return Array.from({ length: 7 }, () => new Array(24).fill('eco' as ScheduleMode));
 }
 
-export const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+// ── Labels ───────────────────────────────────────────────────────────────────
+export const DAY_LABELS      = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 export const DAY_LABELS_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-export const HOUR_LABELS = Array.from({ length: 24 }, (_, i) =>
+export const HOUR_LABELS     = Array.from({ length: 24 }, (_, i) =>
   `${String(i).padStart(2, '0')}h`
 );
 
 export const SCHEDULE_MODE_OPTIONS: { value: ScheduleMode; label: string; color: string }[] = [
-  { value: 'cft', label: 'Confort', color: 'bg-orange-400' },
-  { value: 'eco', label: 'Eco', color: 'bg-emerald-400' },
+  { value: 'cft', label: 'Confort',  color: 'bg-orange-400' },
+  { value: 'eco', label: 'Éco',      color: 'bg-emerald-400' },
   { value: 'fro', label: 'Hors Gel', color: 'bg-blue-300' },
 ];
 
