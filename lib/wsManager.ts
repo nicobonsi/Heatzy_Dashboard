@@ -169,6 +169,20 @@ class GizwitsWebSocketManager {
     }
   }
 
+  /**
+   * Ask the GizWits cloud to push the current state for one device (or all
+   * subscribed devices if no did is given) via s2c_noti.
+   * Call this after a user-initiated refresh so real-time data overwrites any
+   * stale values that the REST API may have returned.
+   */
+  requestRead(did?: string) {
+    if (!this.loggedIn || this.ws?.readyState !== WebSocket.OPEN) return;
+    const dids = did ? [did] : Array.from(this.subs.keys());
+    for (const d of dids) {
+      this.ws!.send(JSON.stringify({ cmd: 'c2s_read', data: { did: d } }));
+    }
+  }
+
   destroy() {
     this.destroyed = true;
     this.clearHeartbeat();

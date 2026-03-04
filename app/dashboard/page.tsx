@@ -7,6 +7,7 @@ import { DeviceGrid } from '@/components/dashboard/DeviceGrid';
 import { ZoneGrid } from '@/components/dashboard/ZoneGrid';
 import { Button } from '@/components/ui/Button';
 import { updateZone } from '@/lib/zones';
+import { wsManager } from '@/lib/wsManager';
 
 export default function DashboardPage() {
   const { devices, loading, error, fetchDevices, updateDeviceMode, updateDeviceName } =
@@ -25,7 +26,11 @@ export default function DashboardPage() {
 
   const handleRefresh = useCallback(async () => {
     await fetchDevices();
-    setRefreshKey((k) => k + 1); // tell DeviceCards to trust fresh device.currentMode
+    setRefreshKey((k) => k + 1);
+    // Request real-time state from all devices via WebSocket.
+    // The s2c_noti responses (tagged _source='ws') will override any stale
+    // mode values that the REST API may have returned.
+    wsManager?.requestRead();
     setRefreshed(true);
     setTimeout(() => setRefreshed(false), 2000);
   }, [fetchDevices]);
