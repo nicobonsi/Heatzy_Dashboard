@@ -17,7 +17,7 @@ import {
 import { encodeWeekSchedule } from '@/lib/schedule';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/contexts/ToastContext';
-import { Button } from '@/components/ui/Button';
+
 
 interface Props {
   device: Device;
@@ -290,29 +290,33 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
           </div>
         )}
 
-        {/* Schedule rows */}
-        <div className="pt-1 border-t border-gray-100 space-y-1">
-          {(['primary', 'alt'] as const).map((which) => (
-            <div key={which} className="flex items-center justify-between gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
+        {/* Schedule rows — grid keeps labels and toggles column-aligned */}
+        <div className="pt-1 border-t border-gray-100">
+          <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-px">
+            {(['primary', 'alt'] as const).flatMap((which) => [
+              <button
+                key={`label-${which}`}
                 onClick={() => setShowSchedule(which)}
-                className="text-gray-500 hover:text-blue-600 flex-1 justify-start text-left"
+                className="text-left text-xs py-1.5 text-gray-500 hover:text-blue-600 transition-colors truncate"
               >
-                📅 {which === 'primary' ? 'Planning' : 'Planning alternatif'}
+                📅{' '}
+                <span className="font-medium">
+                  {which === 'primary' ? 'Planning' : 'Planning alternatif'}
+                </span>
                 {activePlan === which && displayMode && (
-                  <span className="ml-1 text-blue-600 font-medium">
+                  <span className="ml-1 text-blue-600">
                     · {MODE_LABEL[displayMode] ?? displayMode}
                   </span>
                 )}
-              </Button>
-              <ToggleSwitch
-                checked={activePlan === which}
-                onChange={() => handleScheduleToggle(which)}
-              />
-            </div>
-          ))}
+              </button>,
+              <div key={`toggle-${which}`} className="flex justify-end">
+                <ToggleSwitch
+                  checked={activePlan === which}
+                  onChange={() => handleScheduleToggle(which)}
+                />
+              </div>,
+            ])}
+          </div>
         </div>
       </div>
 
