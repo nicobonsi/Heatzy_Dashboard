@@ -26,9 +26,11 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
   // Last mode we confirmed sending — overrides stale poll data
   const [localMode, setLocalMode]     = useState<HeatzyMode | null>(null);
   // The mode that was showing just before we sent a command.
-  // Polls returning this exact value are suppressed (stale API echo).
-  // Polls returning anything else clear the suppress (command confirmed or physical change).
+  // Any update returning this exact value within the suppress window is ignored (stale API echo).
+  // Updates returning a different value are accepted; the suppress stays active until it expires
+  // so that subsequent stale polls of the old mode don't overwrite the new state.
   const preSentModeRef                = useRef<HeatzyMode | null>(null);
+  const suppressExpiryRef             = useRef<number>(0);
   const [isOnline, setIsOnline]       = useState(device.isOnline);
   const [showSchedule, setShowSchedule] = useState(false);
   const { showToast } = useToast();
@@ -47,6 +49,7 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
   useEffect(() => {
     setLocalMode(null);
     preSentModeRef.current = null;
+    suppressExpiryRef.current = 0;
   }, [refreshKey]);
 
   const handleStatusUpdate = useCallback(
@@ -57,14 +60,14 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
         onOnlineUpdate?.(device.did, online);
       }
 
-      if (preSentModeRef.current !== null) {
+      if (preSentModeRef.current !== null && Date.now() < suppressExpiryRef.current) {
         if (mode === preSentModeRef.current) {
           // API is still echoing the pre-command mode (cloud lag) → suppress
           return;
         }
-        // API returned something different: either our command was confirmed
-        // or the device was changed from elsewhere → accept and clear suppress
-        preSentModeRef.current = null;
+        // Different mode arrived (WS confirmed new mode, or physical change).
+        // Accept it, but keep the suppress window active — stale polls of the old
+        // mode may still arrive for a while (GizWits cloud lag can be > 60 s).
       }
       setLocalMode(null);
       onModeUpdate(device.did, mode);
@@ -78,8 +81,10 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
     if (!isOnline) {
       showToast('info', `${device.name} est hors ligne — commande mise en file d'attente`);
     }
-    // Record the current displayed mode so we can suppress its stale echo from the API
+    // Record the current displayed mode so we can suppress its stale echo from the API.
+    // 90 s covers worst-case GizWits cloud lag; Actualiser also clears it.
     preSentModeRef.current = displayModeRef.current;
+    suppressExpiryRef.current = Date.now() + 90_000;
     setPendingMode(mode);
     try {
       await api.controlDevice(device.did, { attrs: { mode } });
@@ -90,6 +95,7 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
       showToast('error', `Erreur de changement de mode pour ${device.name}`);
       // Command failed — clear suppress so polls reflect the real device state
       preSentModeRef.current = null;
+      suppressExpiryRef.current = 0;
     } finally {
       setPendingMode(null);
     }
