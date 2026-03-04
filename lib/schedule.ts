@@ -93,3 +93,53 @@ export function nextScheduleMode(current: ScheduleMode): ScheduleMode {
   const idx = SCHEDULE_MODE_CYCLE.indexOf(current);
   return SCHEDULE_MODE_CYCLE[(idx + 1) % SCHEDULE_MODE_CYCLE.length];
 }
+
+// ── Presets ───────────────────────────────────────────────────────────────────
+// Six built-in programme templates matching the Heatzy iOS/Android app.
+// Each preset is a 48-slot array (30-min granularity, Mon-Sun index).
+function makePreset(rules: Array<[number, number, ScheduleMode]>): ScheduleMode[] {
+  const slots = new Array(48).fill('eco' as ScheduleMode);
+  for (const [startH, endH, mode] of rules) {
+    for (let i = startH * 2; i < endH * 2; i++) slots[i] = mode;
+  }
+  return slots;
+}
+
+export const SCHEDULE_PRESETS: { id: string; label: string; description: string; pattern: ScheduleMode[] }[] = [
+  {
+    id: 'P',
+    label: 'P',
+    description: 'Journée de travail — Confort 6h-9h et 17h-22h',
+    pattern: makePreset([[6, 9, 'cft'], [17, 22, 'cft']]),
+  },
+  {
+    id: 'P1',
+    label: 'P1',
+    description: 'Présence matin — Confort 6h-13h',
+    pattern: makePreset([[6, 13, 'cft']]),
+  },
+  {
+    id: 'P2',
+    label: 'P2',
+    description: 'Présence journée — Confort 7h-20h',
+    pattern: makePreset([[7, 20, 'cft']]),
+  },
+  {
+    id: 'P3',
+    label: 'P3',
+    description: 'Présence soirée — Confort 17h-23h',
+    pattern: makePreset([[17, 23, 'cft']]),
+  },
+  {
+    id: 'P4',
+    label: 'P4',
+    description: 'Absence — Tout Éco',
+    pattern: new Array(48).fill('eco' as ScheduleMode),
+  },
+  {
+    id: 'P5',
+    label: 'P5',
+    description: 'Confort continu — Toute la journée',
+    pattern: new Array(48).fill('cft' as ScheduleMode),
+  },
+];

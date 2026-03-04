@@ -52,6 +52,14 @@ export function useSchedule(did: string) {
     setSchedule((prev) => copyDayHelper(prev, from, to));
   }, []);
 
+  const applyPreset = useCallback((days: number[], pattern: ScheduleMode[]) => {
+    setSchedule((prev) => {
+      const next = prev.map((d) => [...d]) as WeekSchedule;
+      for (const day of days) next[day] = [...pattern];
+      return next;
+    });
+  }, []);
+
   const saveSchedule = useCallback(async () => {
     setSaving(true);
     try {
@@ -62,5 +70,5 @@ export function useSchedule(did: string) {
     }
   }, [did, schedule]);
 
-  return { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, copyDay, saveSchedule };
+  return { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, copyDay, applyPreset, saveSchedule };
 }

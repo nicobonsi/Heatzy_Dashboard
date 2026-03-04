@@ -7,7 +7,6 @@ import { ScheduleGrid } from './ScheduleGrid';
 import { useSchedule } from '@/hooks/useSchedule';
 import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/contexts/ToastContext';
-import { ScheduleMode } from '@/types';
 
 interface Props {
   did: string;
@@ -16,7 +15,7 @@ interface Props {
 }
 
 export function ScheduleModal({ did, deviceName, onClose }: Props) {
-  const { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, copyDay, saveSchedule } =
+  const { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, copyDay, applyPreset, saveSchedule } =
     useSchedule(did);
   const { showToast } = useToast();
 
@@ -48,6 +47,7 @@ export function ScheduleModal({ did, deviceName, onClose }: Props) {
             onFillDay={fillDay}
             onFillAll={fillAll}
             onCopyDay={copyDay}
+            onApplyPreset={applyPreset}
           />
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="secondary" onClick={onClose}>
