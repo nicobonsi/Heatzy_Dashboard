@@ -19,6 +19,8 @@ export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll, onC
 
   const now = new Date();
   const currentSlot = now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0);
+  // JS getDay(): 0=Sun … 6=Sat → our Mon-first index: (getDay()+6)%7
+  const currentDay = (now.getDay() + 6) % 7;
 
   const handleDayHeaderClick = (d: number) => {
     if (onCopyDay && copySource !== null) {
@@ -84,6 +86,8 @@ export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll, onC
                       ? 'text-blue-600'
                       : copySource !== null
                       ? 'text-green-600 hover:text-green-700 underline'
+                      : d === currentDay
+                      ? 'text-blue-600'
                       : 'text-gray-700 hover:text-blue-600'
                   }`}
                   onClick={() => handleDayHeaderClick(d)}
@@ -96,6 +100,9 @@ export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll, onC
                   }
                 >
                   {day}
+                  {d === currentDay && copySource === null && (
+                    <span className="block mx-auto mt-0.5 w-1 h-1 rounded-full bg-blue-500" />
+                  )}
                 </button>
                 {onCopyDay && (
                   <button
@@ -130,7 +137,7 @@ export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll, onC
               </div>
 
               {Array.from({ length: 7 }, (_, day) => (
-                <div key={day} className="px-0.5 py-0.5">
+                <div key={day} className={`px-0.5 py-0.5 ${day === currentDay ? 'bg-blue-50' : ''}`}>
                   <ScheduleCell
                     mode={schedule[day][slot]}
                     onClick={() =>
