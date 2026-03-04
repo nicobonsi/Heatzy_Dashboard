@@ -9,6 +9,9 @@ export interface DeviceStatusUpdate {
   mode: HeatzyMode;
   isOnline?: boolean; // undefined when the devdata endpoint doesn't return this field
   proAttrs?: PiloteProAttrs;
+  /** 'ws' when the update comes from a real-time WebSocket push (always current).
+   *  Absent/undefined when it comes from polling (may be stale). */
+  _source?: 'ws';
 }
 
 function extractProAttrs(attr: Record<string, unknown>): PiloteProAttrs | undefined {
@@ -90,12 +93,12 @@ export function useDeviceStatus(
     };
   }, [fetchStatus, intervalMs]);
 
-  // WebSocket: real-time push updates (same path as polling → suppress logic applies)
+  // WebSocket: real-time push updates — tagged as 'ws' so DeviceCard can trust them unconditionally
   useEffect(() => {
     const unsubscribe = wsManager?.subscribe(did, (attr) => {
       const mode = attr.mode as HeatzyMode | undefined;
       if (mode) {
-        callbackRef.current({ mode, proAttrs: extractProAttrs(attr) });
+        callbackRef.current({ mode, proAttrs: extractProAttrs(attr), _source: 'ws' });
       }
     });
     return unsubscribe;
