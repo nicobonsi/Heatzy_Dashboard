@@ -19,7 +19,7 @@ export function ScheduleCell({ mode, onClick, small = false }: Props) {
     <button
       onClick={onClick}
       title={mode === 'cft' ? 'Confort' : mode === 'eco' ? 'Éco' : 'Hors Gel'}
-      className={`w-full transition-colors cursor-pointer rounded-sm ${CELL_COLORS[mode]} ${small ? 'h-4' : 'h-6'}`}
+      className={`w-full transition-colors cursor-pointer rounded-sm ${CELL_COLORS[mode]} ${small ? 'h-2' : 'h-3'}`}
     />
   );
 }

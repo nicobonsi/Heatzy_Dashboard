@@ -16,7 +16,7 @@ interface Props {
 }
 
 export function ScheduleModal({ did, deviceName, onClose }: Props) {
-  const { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, saveSchedule } =
+  const { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, copyDay, saveSchedule } =
     useSchedule(did);
   const { showToast } = useToast();
 
@@ -47,6 +47,7 @@ export function ScheduleModal({ did, deviceName, onClose }: Props) {
             onCellChange={updateCell}
             onFillDay={fillDay}
             onFillAll={fillAll}
+            onCopyDay={copyDay}
           />
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="secondary" onClick={onClose}>

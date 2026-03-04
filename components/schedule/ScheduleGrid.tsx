@@ -2,18 +2,34 @@
 
 import { WeekSchedule, ScheduleMode } from '@/types';
 import { ScheduleCell } from './ScheduleCell';
-import { DAY_LABELS, HOUR_LABELS, nextScheduleMode, SCHEDULE_MODE_CYCLE } from '@/lib/schedule';
+import { DAY_LABELS, HALF_HOUR_LABELS, nextScheduleMode, SCHEDULE_MODE_CYCLE } from '@/lib/schedule';
 import { useState } from 'react';
 
 interface Props {
   schedule: WeekSchedule;
-  onCellChange: (day: number, hour: number, mode: ScheduleMode) => void;
+  onCellChange: (day: number, slot: number, mode: ScheduleMode) => void;
   onFillDay?: (day: number, mode: ScheduleMode) => void;
   onFillAll?: (mode: ScheduleMode) => void;
+  onCopyDay?: (from: number, to: number) => void;
 }
 
-export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll }: Props) {
+export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll, onCopyDay }: Props) {
   const [fillMode, setFillMode] = useState<ScheduleMode>('cft');
+  const [copySource, setCopySource] = useState<number | null>(null);
+
+  const now = new Date();
+  const currentSlot = now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0);
+
+  const handleDayHeaderClick = (d: number) => {
+    if (onCopyDay && copySource !== null) {
+      if (copySource !== d) {
+        onCopyDay(copySource, d);
+      }
+      setCopySource(null);
+    } else {
+      onFillDay?.(d, fillMode);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -40,6 +56,14 @@ export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll }: P
               Tout remplir
             </button>
           )}
+          {copySource !== null && (
+            <button
+              onClick={() => setCopySource(null)}
+              className="ml-auto px-2 py-1 rounded bg-blue-50 text-blue-600 border border-blue-200 font-medium"
+            >
+              ✕ Annuler la copie
+            </button>
+          )}
         </div>
       )}
 
@@ -53,28 +77,64 @@ export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll }: P
           <div />
           {DAY_LABELS.map((day, d) => (
             <div key={day} className="text-center">
-              <button
-                className="text-xs font-semibold text-gray-700 py-1 w-full hover:text-blue-600 transition-colors"
-                onClick={() => onFillDay?.(d, fillMode)}
-                title={`Remplir ${day} avec ${fillMode}`}
-              >
-                {day}
-              </button>
+              <div className="flex items-center justify-center gap-0.5">
+                <button
+                  className={`text-xs font-semibold py-1 transition-colors ${
+                    copySource === d
+                      ? 'text-blue-600'
+                      : copySource !== null
+                      ? 'text-green-600 hover:text-green-700 underline'
+                      : 'text-gray-700 hover:text-blue-600'
+                  }`}
+                  onClick={() => handleDayHeaderClick(d)}
+                  title={
+                    copySource === d
+                      ? `Source : ${day}`
+                      : copySource !== null
+                      ? `Coller sur ${day}`
+                      : `Remplir ${day} avec ${fillMode}`
+                  }
+                >
+                  {day}
+                </button>
+                {onCopyDay && (
+                  <button
+                    onClick={() => setCopySource(copySource === d ? null : d)}
+                    title={copySource === d ? 'Annuler' : `Copier ${day}`}
+                    className={`text-[10px] px-0.5 rounded transition-colors leading-none ${
+                      copySource === d
+                        ? 'text-blue-600'
+                        : 'text-gray-300 hover:text-gray-500'
+                    }`}
+                  >
+                    ⎘
+                  </button>
+                )}
+              </div>
             </div>
           ))}
 
-          {/* Hour rows */}
-          {HOUR_LABELS.map((label, hour) => (
-            <div key={hour} className="contents">
-              <div className="text-right pr-1 text-xs text-gray-400 leading-6 py-0.5">
-                {label}
+          {/* Half-hour rows */}
+          {HALF_HOUR_LABELS.map((label, slot) => (
+            <div key={slot} className="contents">
+              {/* Time label */}
+              <div className="flex items-center justify-end pr-1 gap-0.5 py-0.5">
+                {slot === currentSlot && (
+                  <span className="text-blue-500 text-[9px] leading-none">▶</span>
+                )}
+                {slot % 2 === 0 ? (
+                  <span className="text-[10px] text-gray-500">{label}</span>
+                ) : (
+                  <span className="text-[9px] text-gray-300">:30</span>
+                )}
               </div>
+
               {Array.from({ length: 7 }, (_, day) => (
                 <div key={day} className="px-0.5 py-0.5">
                   <ScheduleCell
-                    mode={schedule[day][hour]}
+                    mode={schedule[day][slot]}
                     onClick={() =>
-                      onCellChange(day, hour, nextScheduleMode(schedule[day][hour]))
+                      onCellChange(day, slot, nextScheduleMode(schedule[day][slot]))
                     }
                   />
                 </div>
@@ -95,7 +155,7 @@ export function ScheduleGrid({ schedule, onCellChange, onFillDay, onFillAll }: P
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm bg-blue-300 inline-block" /> Hors Gel
         </span>
-        <span className="text-gray-400 italic">Cliquer sur une case pour changer • Cliquer sur le jour pour remplir</span>
+        <span className="text-gray-400 italic">Cliquer sur une case pour changer • Cliquer sur le jour pour remplir • ⎘ pour copier</span>
       </div>
     </div>
   );

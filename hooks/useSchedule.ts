@@ -6,6 +6,7 @@ import {
   decodeWeekSchedule,
   encodeWeekSchedule,
   createDefaultWeekSchedule,
+  copyDay as copyDayHelper,
 } from '@/lib/schedule';
 import { api } from '@/lib/api/client';
 
@@ -38,13 +39,17 @@ export function useSchedule(did: string) {
   const fillDay = useCallback((day: number, mode: ScheduleMode) => {
     setSchedule((prev) => {
       const next = prev.map((d) => [...d]) as WeekSchedule;
-      next[day] = new Array(24).fill(mode);
+      next[day] = new Array(48).fill(mode);
       return next;
     });
   }, []);
 
   const fillAll = useCallback((mode: ScheduleMode) => {
-    setSchedule(Array.from({ length: 7 }, () => new Array(24).fill(mode)));
+    setSchedule(Array.from({ length: 7 }, () => new Array(48).fill(mode)));
+  }, []);
+
+  const copyDay = useCallback((from: number, to: number) => {
+    setSchedule((prev) => copyDayHelper(prev, from, to));
   }, []);
 
   const saveSchedule = useCallback(async () => {
@@ -57,5 +62,5 @@ export function useSchedule(did: string) {
     }
   }, [did, schedule]);
 
-  return { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, saveSchedule };
+  return { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, copyDay, saveSchedule };
 }

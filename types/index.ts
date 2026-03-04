@@ -75,27 +75,32 @@ export interface Device {
   currentMode: HeatzyMode | null;
   productName: string;
   productKey: string;
+  timerSwitch?: 0 | 1; // weekly schedule on/off — present on all product types
   // Pro-specific live data (undefined for non-Pro devices)
   proAttrs?: PiloteProAttrs;
 }
 
-// Product key strings that identify a Pilote Pro
-// (Product.pro = 6 in OlivierZal/heatzy-api enum)
-export const PILOTE_PRO_PRODUCT_KEYS: readonly string[] = [
-  // Add confirmed Pro product_key values here as they are discovered.
-  // Until then, detection falls back to product_name check below.
-];
+// Product type classification
+export type ProductType = 'pilote' | 'pilote-pro' | 'glow' | 'shine';
+
+export function getProductType(
+  device: Pick<Device, 'productName' | 'productKey'>
+): ProductType {
+  const name = (device.productName ?? '').toLowerCase();
+  if (name.includes('pro'))   return 'pilote-pro';
+  if (name.includes('glow'))  return 'glow';
+  if (name.includes('shine')) return 'shine';
+  return 'pilote';
+}
 
 // Returns true if the device is a Heatzy Pilote Pro
 export function isPilotePro(device: Pick<Device, 'productName' | 'productKey'>): boolean {
-  if (PILOTE_PRO_PRODUCT_KEYS.includes(device.productKey)) return true;
-  const name = (device.productName ?? '').toLowerCase();
-  return name.includes('pro') || name.includes('pilote pro');
+  return getProductType(device) === 'pilote-pro';
 }
 
-// Schedule: 7 days × 24 hours
+// Schedule: 7 days × 48 half-hours (4 × 30-min sub-slots per 2-hour API slot)
 export type ScheduleMode = 'cft' | 'eco' | 'fro';
-export type WeekSchedule = ScheduleMode[][]; // [day 0-6][hour 0-23]
+export type WeekSchedule = ScheduleMode[][]; // [day 0-6][halfhour 0-47]
 
 // --- Zones (localStorage) ---
 export interface Zone {

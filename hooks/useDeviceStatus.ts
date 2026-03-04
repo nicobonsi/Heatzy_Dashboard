@@ -9,6 +9,7 @@ export interface DeviceStatusUpdate {
   mode: HeatzyMode;
   isOnline?: boolean; // undefined when the devdata endpoint doesn't return this field
   proAttrs?: PiloteProAttrs;
+  timerSwitch?: 0 | 1;
   /** 'ws' when the update comes from a real-time WebSocket push (always current).
    *  Absent/undefined when it comes from polling (may be stale). */
   _source?: 'ws';
@@ -48,6 +49,7 @@ export function useDeviceStatus(
       const data = await api.getDeviceStatus(did);
       const attr = (data.attr ?? {}) as Record<string, unknown>;
       const mode = attr.mode as HeatzyMode | undefined;
+      const timerSwitch = attr.timer_switch as 0 | 1 | undefined;
       // is_online is not returned by /app/devdata — only include it if present
       const isOnlineRaw = (data as unknown as { is_online?: boolean }).is_online;
       if (mode) {
@@ -55,6 +57,7 @@ export function useDeviceStatus(
           mode,
           ...(isOnlineRaw !== undefined && { isOnline: isOnlineRaw }),
           proAttrs: extractProAttrs(attr),
+          ...(timerSwitch !== undefined && { timerSwitch }),
         });
       }
     } catch {
@@ -97,8 +100,14 @@ export function useDeviceStatus(
   useEffect(() => {
     const unsubscribe = wsManager?.subscribe(did, (attr) => {
       const mode = attr.mode as HeatzyMode | undefined;
+      const timerSwitch = attr.timer_switch as 0 | 1 | undefined;
       if (mode) {
-        callbackRef.current({ mode, proAttrs: extractProAttrs(attr), _source: 'ws' });
+        callbackRef.current({
+          mode,
+          proAttrs: extractProAttrs(attr),
+          ...(timerSwitch !== undefined && { timerSwitch }),
+          _source: 'ws',
+        });
       }
     });
     return unsubscribe;

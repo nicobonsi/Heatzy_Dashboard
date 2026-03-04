@@ -9,6 +9,7 @@ function mapDevice(
   raw: GizwitsDevice,
   currentMode: HeatzyMode | null = null,
   proAttrs?: PiloteProAttrs,
+  timerSwitch?: 0 | 1,
 ): Device {
   const localName = getDeviceNameOverride(raw.did);
   return {
@@ -19,6 +20,7 @@ function mapDevice(
     currentMode,
     productName: raw.product_name,
     productKey: raw.product_key,
+    timerSwitch,
     proAttrs,
   };
 }
@@ -26,8 +28,10 @@ function mapDevice(
 function extractAttrs(attr: Record<string, unknown>): {
   mode: HeatzyMode | null;
   proAttrs: PiloteProAttrs | undefined;
+  timerSwitch: 0 | 1 | undefined;
 } {
   const mode = (attr.mode as HeatzyMode | undefined) ?? null;
+  const timerSwitch = attr.timer_switch as 0 | 1 | undefined;
   const hasPro =
     attr.cur_temp !== undefined ||
     attr.cft_temp !== undefined ||
@@ -45,7 +49,7 @@ function extractAttrs(attr: Record<string, unknown>): {
         timer_switch:  attr.timer_switch  as 0 | 1 | undefined,
       }
     : undefined;
-  return { mode, proAttrs };
+  return { mode, proAttrs, timerSwitch };
 }
 
 export function useDevices() {
@@ -73,14 +77,16 @@ export function useDevices() {
           let currentMode: HeatzyMode | null = existing?.currentMode ?? null;
           let proAttrs = existing?.proAttrs;
 
+          let timerSwitch = existing?.timerSwitch;
           if (result.status === 'fulfilled') {
             const attr = (result.value.attr ?? {}) as Record<string, unknown>;
             const extracted = extractAttrs(attr);
             if (extracted.mode) currentMode = extracted.mode;
             if (extracted.proAttrs) proAttrs = extracted.proAttrs;
+            if (extracted.timerSwitch !== undefined) timerSwitch = extracted.timerSwitch;
           }
 
-          return mapDevice(rawDevice, currentMode, proAttrs);
+          return mapDevice(rawDevice, currentMode, proAttrs, timerSwitch);
         });
       });
     } catch (e) {
@@ -117,5 +123,11 @@ export function useDevices() {
     []
   );
 
-  return { devices, loading, error, fetchDevices, updateDeviceMode, updateDeviceName, updateDeviceStatus };
+  const updateDeviceTimerSwitch = useCallback((did: string, value: 0 | 1) => {
+    setDevices((prev) =>
+      prev.map((d) => (d.did === did ? { ...d, timerSwitch: value } : d))
+    );
+  }, []);
+
+  return { devices, loading, error, fetchDevices, updateDeviceMode, updateDeviceName, updateDeviceStatus, updateDeviceTimerSwitch };
 }
