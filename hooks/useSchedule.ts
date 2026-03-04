@@ -8,25 +8,42 @@ import {
   createDefaultWeekSchedule,
   copyDay as copyDayHelper,
 } from '@/lib/schedule';
+import {
+  loadStoredSchedule,
+  saveStoredSchedule,
+  loadActivePlan,
+} from '@/lib/scheduleStorage';
 import { api } from '@/lib/api/client';
 
-export function useSchedule(did: string) {
+export function useSchedule(did: string, which: 'primary' | 'alt' = 'primary') {
   const [schedule, setSchedule] = useState<WeekSchedule>(createDefaultWeekSchedule());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const loadSchedule = useCallback(async () => {
+    if (which === 'alt') {
+      // Alt schedule lives only in localStorage
+      const stored = loadStoredSchedule(did, 'alt');
+      setSchedule(stored ?? createDefaultWeekSchedule());
+      return;
+    }
+
+    // Primary: load from device and cache locally
     setLoading(true);
     try {
       const data = await api.getDeviceStatus(did);
       const raw = data.attr as Record<string, unknown>;
-      setSchedule(decodeWeekSchedule(raw));
+      const decoded = decodeWeekSchedule(raw);
+      setSchedule(decoded);
+      saveStoredSchedule(did, 'primary', decoded);
     } catch {
-      setSchedule(createDefaultWeekSchedule());
+      // Fall back to cached version
+      const cached = loadStoredSchedule(did, 'primary');
+      setSchedule(cached ?? createDefaultWeekSchedule());
     } finally {
       setLoading(false);
     }
-  }, [did]);
+  }, [did, which]);
 
   const updateCell = useCallback((day: number, hour: number, mode: ScheduleMode) => {
     setSchedule((prev) => {
@@ -63,12 +80,37 @@ export function useSchedule(did: string) {
   const saveSchedule = useCallback(async () => {
     setSaving(true);
     try {
-      const encoded: Record<string, unknown> = encodeWeekSchedule(schedule);
-      await api.controlDevice(did, { attrs: encoded });
+      // Always persist to localStorage
+      saveStoredSchedule(did, which, schedule);
+
+      // Upload to device:
+      //   primary → always, unless alt is currently active (alt has the device slot)
+      //   alt     → only when alt is currently the active plan on the device
+      const active = loadActivePlan(did);
+      const shouldUpload =
+        which === 'primary' ? active !== 'alt' : active === 'alt';
+
+      if (shouldUpload) {
+        const encoded: Record<string, unknown> = encodeWeekSchedule(schedule);
+        await api.controlDevice(did, { attrs: encoded });
+      }
+
+      return { uploadedToDevice: shouldUpload };
     } finally {
       setSaving(false);
     }
-  }, [did, schedule]);
+  }, [did, which, schedule]);
 
-  return { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, copyDay, applyPreset, saveSchedule };
+  return {
+    schedule,
+    loading,
+    saving,
+    loadSchedule,
+    updateCell,
+    fillDay,
+    fillAll,
+    copyDay,
+    applyPreset,
+    saveSchedule,
+  };
 }

@@ -11,12 +11,13 @@ import { useToast } from '@/contexts/ToastContext';
 interface Props {
   did: string;
   deviceName: string;
+  which?: 'primary' | 'alt';
   onClose: () => void;
 }
 
-export function ScheduleModal({ did, deviceName, onClose }: Props) {
+export function ScheduleModal({ did, deviceName, which = 'primary', onClose }: Props) {
   const { schedule, loading, saving, loadSchedule, updateCell, fillDay, fillAll, copyDay, applyPreset, saveSchedule } =
-    useSchedule(did);
+    useSchedule(did, which);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -25,16 +26,24 @@ export function ScheduleModal({ did, deviceName, onClose }: Props) {
 
   const handleSave = async () => {
     try {
-      await saveSchedule();
-      showToast('success', 'Planning enregistré');
+      const result = await saveSchedule();
+      if (which === 'alt' && !result?.uploadedToDevice) {
+        showToast('success', 'Planning alternatif sauvegardé — activez-le via le bouton sur la carte');
+      } else {
+        showToast('success', 'Planning enregistré');
+      }
       onClose();
     } catch {
       showToast('error', 'Erreur lors de l\'enregistrement du planning');
     }
   };
 
+  const title = which === 'alt'
+    ? `Planning alternatif — ${deviceName}`
+    : `Planning — ${deviceName}`;
+
   return (
-    <Modal title={`Planning — ${deviceName}`} onClose={onClose} wide>
+    <Modal title={title} onClose={onClose} wide>
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <Spinner size="lg" />
@@ -54,7 +63,7 @@ export function ScheduleModal({ did, deviceName, onClose }: Props) {
               Annuler
             </Button>
             <Button onClick={handleSave} loading={saving}>
-              Enregistrer le planning
+              {which === 'alt' ? 'Sauvegarder le planning alternatif' : 'Enregistrer le planning'}
             </Button>
           </div>
         </div>

@@ -8,6 +8,13 @@ import { PiloteProPanel } from '@/components/device/PiloteProPanel';
 import { DeviceNameEditor } from '@/components/device/DeviceNameEditor';
 import { ScheduleModal } from '@/components/schedule/ScheduleModal';
 import { useDeviceStatus, DeviceStatusUpdate } from '@/hooks/useDeviceStatus';
+import {
+  ActivePlan,
+  loadActivePlan,
+  saveActivePlan,
+  loadStoredSchedule,
+} from '@/lib/scheduleStorage';
+import { encodeWeekSchedule } from '@/lib/schedule';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
@@ -58,6 +65,15 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: () =>
   );
 }
 
+/** Reconcile stored active plan with device's reported timerSwitch on mount. */
+function initActivePlan(did: string, timerSwitch: 0 | 1 | undefined): ActivePlan {
+  if (typeof window === 'undefined') return 'none';
+  const stored = loadActivePlan(did);
+  if (timerSwitch === 0) return 'none';                    // device says off → always none
+  if (timerSwitch === 1 && stored === 'none') return 'primary'; // device on, nothing stored → assume primary
+  return stored;
+}
+
 export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onOnlineUpdate }: Props) {
   const productType = getProductType(device);
   const pro = productType === 'pilote-pro';
@@ -71,14 +87,26 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
   const wsConfirmedModeRef            = useRef<HeatzyMode | null>(null);
   const wsConfirmWindowRef            = useRef<number>(0);
 
-  // ── Timer switch state ────────────────────────────────────────────────────
-  const [localTimerSwitch, setLocalTimerSwitch] = useState<0 | 1 | undefined>(device.timerSwitch);
-  const preSentTimerSwitchRef  = useRef<0 | 1 | null>(null);
-  const timerSuppressExpiryRef = useRef<number>(0);
+  // ── Active plan state (replaces single localTimerSwitch) ─────────────────
+  // 'none'    → schedule off
+  // 'primary' → Planning is active on device
+  // 'alt'     → Planning Alternatif is active on device
+  const [activePlan, setActivePlanState] = useState<ActivePlan>(() =>
+    initActivePlan(device.did, device.timerSwitch)
+  );
+  const activePlanRef              = useRef(activePlan);
+  activePlanRef.current            = activePlan;
+  const preSentTimerSwitchRef      = useRef<0 | 1 | null>(null);
+  const timerSuppressExpiryRef     = useRef<number>(0);
+
+  const setActivePlan = useCallback((next: ActivePlan) => {
+    setActivePlanState(next);
+    saveActivePlan(device.did, next);
+  }, [device.did]);
 
   // ── Online + schedule modal ───────────────────────────────────────────────
-  const [isOnline, setIsOnline]       = useState(device.isOnline);
-  const [showSchedule, setShowSchedule] = useState(false);
+  const [isOnline, setIsOnline]         = useState(device.isOnline);
+  const [showSchedule, setShowSchedule] = useState<null | 'primary' | 'alt'>(null);
   const { showToast } = useToast();
 
   const displayMode = pendingMode ?? localMode ?? device.currentMode;
@@ -88,11 +116,14 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
   // Clear overrides when parent refreshes
   useEffect(() => {
     setLocalMode(null);
-    preSentModeRef.current   = null;
-    suppressExpiryRef.current  = 0;
-    wsConfirmedModeRef.current = null;
-    wsConfirmWindowRef.current = 0;
-  }, [refreshKey]);
+    preSentModeRef.current        = null;
+    suppressExpiryRef.current     = 0;
+    wsConfirmedModeRef.current    = null;
+    wsConfirmWindowRef.current    = 0;
+    preSentTimerSwitchRef.current = null;
+    timerSuppressExpiryRef.current = 0;
+    setActivePlanState(loadActivePlan(device.did));
+  }, [refreshKey, device.did]);
 
   const handleStatusUpdate = useCallback(
     ({ mode, isOnline: online, timerSwitch, _source }: DeviceStatusUpdate) => {
@@ -104,15 +135,28 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
       if (_source === 'ws') {
         wsConfirmedModeRef.current = mode;
         wsConfirmWindowRef.current = Date.now() + 90_000;
-        if (timerSwitch !== undefined) setLocalTimerSwitch(timerSwitch);
+        // WS push: reconcile activePlan with device's timerSwitch
+        if (timerSwitch !== undefined) {
+          if (timerSwitch === 0) {
+            setActivePlan('none');
+          } else if (timerSwitch === 1 && activePlanRef.current === 'none') {
+            setActivePlan('primary');
+          }
+        }
       } else {
-        // Update timerSwitch from poll with its own suppress (before mode early-returns)
+        // Poll: apply timerSwitch suppress before early-returns
         if (timerSwitch !== undefined) {
           const timerSuppressed =
             preSentTimerSwitchRef.current !== null &&
             Date.now() < timerSuppressExpiryRef.current &&
             timerSwitch === preSentTimerSwitchRef.current;
-          if (!timerSuppressed) setLocalTimerSwitch(timerSwitch);
+          if (!timerSuppressed) {
+            if (timerSwitch === 0) {
+              setActivePlan('none');
+            } else if (timerSwitch === 1 && activePlanRef.current === 'none') {
+              setActivePlan('primary');
+            }
+          }
         }
 
         // WS-confirmation suppress for mode
@@ -128,7 +172,7 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
       setLocalMode(null);
       onModeUpdate(device.did, mode);
     },
-    [device.did, onModeUpdate, onOnlineUpdate]
+    [device.did, onModeUpdate, onOnlineUpdate, setActivePlan]
   );
 
   useDeviceStatus(device.did, handleStatusUpdate, 10_000);
@@ -153,20 +197,47 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
     }
   }, [device.did, device.name, isOnline, onModeUpdate, showToast]);
 
-  const handleTimerToggle = useCallback(async () => {
-    const newValue: 0 | 1 = localTimerSwitch === 1 ? 0 : 1;
-    preSentTimerSwitchRef.current = localTimerSwitch ?? 0;
+  /** Toggle a schedule plan on/off (radio-style: only one active at a time). */
+  const handleScheduleToggle = useCallback(async (which: 'primary' | 'alt') => {
+    if (activePlan === which) {
+      // ── Deactivate ──
+      preSentTimerSwitchRef.current = 1;
+      timerSuppressExpiryRef.current = Date.now() + 90_000;
+      setActivePlan('none');
+      try {
+        await api.controlDevice(device.did, { attrs: { timer_switch: 0 } });
+      } catch {
+        showToast('error', `Erreur lors de la désactivation du planning pour ${device.name}`);
+        preSentTimerSwitchRef.current = null;
+        timerSuppressExpiryRef.current = 0;
+      }
+      return;
+    }
+
+    // ── Activate ──
+    // For alt: require that it has been saved at least once
+    const stored = loadStoredSchedule(device.did, which);
+    if (!stored && which === 'alt') {
+      showToast('info', `Créez d'abord votre Planning Alternatif en cliquant sur le bouton 📅`);
+      return;
+    }
+
+    preSentTimerSwitchRef.current = activePlan !== 'none' ? 1 : 0;
     timerSuppressExpiryRef.current = Date.now() + 90_000;
-    setLocalTimerSwitch(newValue);
+    setActivePlan(which);
+
     try {
-      await api.controlDevice(device.did, { attrs: { timer_switch: newValue } });
+      // Upload the schedule bytes + enable timer
+      const attrs: Record<string, unknown> = stored
+        ? { ...encodeWeekSchedule(stored), timer_switch: 1 }
+        : { timer_switch: 1 }; // primary with no cache: bytes already on device
+      await api.controlDevice(device.did, { attrs });
     } catch {
-      showToast('error', `Erreur de modification du planning pour ${device.name}`);
+      showToast('error', `Erreur lors de l'activation du planning pour ${device.name}`);
       preSentTimerSwitchRef.current = null;
       timerSuppressExpiryRef.current = 0;
-      setLocalTimerSwitch(localTimerSwitch);
     }
-  }, [device.did, device.name, localTimerSwitch, showToast]);
+  }, [activePlan, device.did, device.name, setActivePlan, showToast]);
 
   return (
     <>
@@ -219,25 +290,29 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
           </div>
         )}
 
-        {/* Schedule row */}
-        <div className="flex items-center justify-between pt-1 border-t border-gray-100 gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowSchedule(true)}
-            className="text-gray-500 hover:text-blue-600 flex-1 justify-start"
-          >
-            📅 Planning
-            {localTimerSwitch === 1 && displayMode && (
-              <span className="ml-1 text-blue-600 font-medium">
-                · {MODE_LABEL[displayMode] ?? displayMode}
-              </span>
-            )}
-          </Button>
-          <ToggleSwitch
-            checked={localTimerSwitch === 1}
-            onChange={handleTimerToggle}
-          />
+        {/* Schedule rows */}
+        <div className="pt-1 border-t border-gray-100 space-y-1">
+          {(['primary', 'alt'] as const).map((which) => (
+            <div key={which} className="flex items-center justify-between gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSchedule(which)}
+                className="text-gray-500 hover:text-blue-600 flex-1 justify-start text-left"
+              >
+                📅 {which === 'primary' ? 'Planning' : 'Planning alternatif'}
+                {activePlan === which && displayMode && (
+                  <span className="ml-1 text-blue-600 font-medium">
+                    · {MODE_LABEL[displayMode] ?? displayMode}
+                  </span>
+                )}
+              </Button>
+              <ToggleSwitch
+                checked={activePlan === which}
+                onChange={() => handleScheduleToggle(which)}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -245,7 +320,8 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
         <ScheduleModal
           did={device.did}
           deviceName={device.name}
-          onClose={() => setShowSchedule(false)}
+          which={showSchedule}
+          onClose={() => setShowSchedule(null)}
         />
       )}
     </>
