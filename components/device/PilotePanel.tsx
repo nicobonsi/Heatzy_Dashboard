@@ -52,10 +52,8 @@ export function PilotePanel({ device, pendingMode, onModeChange }: Props) {
   const [tab, setTab] = useState<Tab>('mode');
   const proAttrs = device.proAttrs ?? {};
 
-  const [windowEnabled, setWindowEnabled] = useState(proAttrs.window_switch === 1);
-  const [lockEnabled, setLockEnabled]     = useState(proAttrs.lock_switch === 1);
-  const [togglingWindow, setTogglingWindow] = useState(false);
-  const [togglingLock, setTogglingLock]     = useState(false);
+  const [lockEnabled, setLockEnabled]   = useState(proAttrs.lock_switch === 1);
+  const [togglingLock, setTogglingLock] = useState(false);
 
   const [boostDuration, setBoostDuration] = useState(60);
   const [vacationDays, setVacationDays]   = useState(7);
@@ -65,20 +63,6 @@ export function PilotePanel({ device, pendingMode, onModeChange }: Props) {
   const isBoostActive    = proAttrs.derog_mode === DerogationMode.Boost;
   const isVacationActive = proAttrs.derog_mode === DerogationMode.Vacation;
   const derogTime        = proAttrs.derog_time;
-
-  const handleToggleWindow = useCallback(async () => {
-    const next = windowEnabled ? 0 : 1;
-    setTogglingWindow(true);
-    try {
-      await api.controlDevice(device.did, { attrs: { window_switch: next } });
-      setWindowEnabled(next === 1);
-      showToast('success', next ? 'Détection fenêtre activée' : 'Détection fenêtre désactivée');
-    } catch {
-      showToast('error', 'Erreur lors du changement');
-    } finally {
-      setTogglingWindow(false);
-    }
-  }, [device.did, windowEnabled, showToast]);
 
   const handleToggleLock = useCallback(async () => {
     const next = lockEnabled ? 0 : 1;
@@ -134,13 +118,6 @@ export function PilotePanel({ device, pendingMode, onModeChange }: Props) {
             current={pendingMode ?? device.currentMode}
             onChange={onModeChange}
             disabled={!!pendingMode}
-          />
-          <ToggleRow
-            label="🪟 Détection fenêtre ouverte"
-            description="Coupe le chauffage si la temp. chute brutalement"
-            checked={windowEnabled}
-            loading={togglingWindow}
-            onToggle={handleToggleWindow}
           />
           <ToggleRow
             label="🔒 Mode Verrouillage"
