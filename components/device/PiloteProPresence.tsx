@@ -14,6 +14,7 @@ interface Props {
 }
 
 const PRESENCE_DURATION_OPTIONS = [15, 30, 60, 120, 240];
+const PRESENCE_LABEL = (m: number) => m >= 60 ? `${m / 60}h` : `${m}m`;
 const BOOST_DURATION_OPTIONS = [30, 60, 90, 120];
 
 export function PiloteProPresence({
@@ -62,43 +63,49 @@ export function PiloteProPresence({
 
       {/* --- PIR / Presence detection --- */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="bg-gray-50 px-3 py-2 flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-700">👤 Détecteur de présence (PIR)</span>
-          {isPresenceActive && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">Actif</span>}
-        </div>
-        <div className="px-3 py-3 space-y-2">
-          <p className="text-xs text-gray-500">
-            Quand une présence est détectée, le produit passe en Confort.
-            Après la durée choisie sans mouvement, il reprend le mode planifié.
-          </p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-600">Durée :</span>
-            {PRESENCE_DURATION_OPTIONS.map((m) => (
-              <button
-                key={m}
-                onClick={() => setPresenceDuration(m)}
-                className={`text-xs px-2 py-1 rounded border transition-colors ${
-                  presenceDuration === m
-                    ? 'bg-purple-600 text-white border-purple-600'
-                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {m >= 60 ? `${m / 60}h` : `${m}min`}
-              </button>
-            ))}
+        {/* Header row: label + active badge + toggle */}
+        <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+          <div className="flex-1 flex items-center gap-1.5 min-w-0">
+            <span className="text-xs font-semibold text-gray-700">👤 Détecteur de présence (PIR)</span>
+            {isPresenceActive && (
+              <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium shrink-0">Actif</span>
+            )}
           </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={isPresenceActive ? 'secondary' : 'primary'}
-              loading={loading}
-              onClick={() => run(() => onSetPresence(!isPresenceActive, presenceDuration))}
-              className={isPresenceActive ? '' : 'bg-purple-600 hover:bg-purple-700'}
+          <button
+            onClick={() => run(() => onSetPresence(!isPresenceActive, presenceDuration))}
+            disabled={loading}
+            className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
+              isPresenceActive ? 'bg-purple-500' : 'bg-gray-300'
+            } disabled:opacity-50`}
+          >
+            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+              isPresenceActive ? 'translate-x-4' : 'translate-x-0.5'
+            }`} />
+          </button>
+        </div>
+
+        {/* Timeout row */}
+        <div className="flex items-center gap-1.5 px-3 pb-2.5 flex-wrap">
+          <span className="text-[10px] text-gray-400 shrink-0">Timeout :</span>
+          {PRESENCE_DURATION_OPTIONS.map((m) => (
+            <button
+              key={m}
+              onClick={() => setPresenceDuration(m)}
+              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                presenceDuration === m
+                  ? 'bg-purple-600 text-white border-purple-600'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+              }`}
             >
-              {isPresenceActive ? 'Désactiver présence' : 'Activer présence'}
-            </Button>
-          </div>
+              {PRESENCE_LABEL(m)}
+            </button>
+          ))}
         </div>
+
+        {/* Description */}
+        <p className="px-3 pb-2.5 text-[10px] text-gray-400 leading-snug border-t border-gray-100 pt-1.5">
+          Passe en Confort lors d'une détection · reprend le mode planifié après le timeout.
+        </p>
       </div>
 
       {/* --- Boost --- */}
