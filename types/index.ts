@@ -43,6 +43,9 @@ export interface PiloteProAttrs {
   derog_time?: number;     // duration in minutes (boost) or days (vacation)
   lock_switch?: 0 | 1;
   timer_switch?: 0 | 1;
+  temp_offset?: number;    // probe calibration offset × 10, range -50..+50 (-5°C to +5°C)
+  temp_step?: number;      // temperature step per +/- button press: 5=0.5°C, 10=1°C
+  eco_responsible?: 0 | 1; // Pilote Pro only: limits Confort to 21°C (ADEME recommendation)
 }
 
 // Derogation / override modes

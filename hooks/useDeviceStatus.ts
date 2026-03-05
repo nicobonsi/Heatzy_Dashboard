@@ -16,11 +16,14 @@ export interface DeviceStatusUpdate {
 }
 
 function extractProAttrs(attr: Record<string, unknown>): PiloteProAttrs | undefined {
-  // Only return proAttrs if the device exposes at least one Pro-specific attribute
+  // Return proAttrs for any device that exposes advanced attributes
   const hasPro =
-    attr.cur_temp !== undefined ||
-    attr.cft_temp !== undefined ||
-    attr.eco_temp !== undefined;
+    attr.cur_temp      !== undefined ||
+    attr.cft_temp      !== undefined ||
+    attr.eco_temp      !== undefined ||
+    attr.window_switch !== undefined ||
+    attr.derog_mode    !== undefined ||
+    attr.lock_switch   !== undefined;
   if (!hasPro) return undefined;
 
   return {
@@ -33,6 +36,9 @@ function extractProAttrs(attr: Record<string, unknown>): PiloteProAttrs | undefi
     derog_time:    attr.derog_time    as number | undefined,
     lock_switch:   attr.lock_switch   as 0 | 1 | undefined,
     timer_switch:  attr.timer_switch  as 0 | 1 | undefined,
+    temp_offset:     attr.temp_offset     as number | undefined,
+    temp_step:       attr.temp_step       as number | undefined,
+    eco_responsible: attr.eco_responsible as 0 | 1 | undefined,
   };
 }
 

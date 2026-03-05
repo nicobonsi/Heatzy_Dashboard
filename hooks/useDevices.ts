@@ -33,9 +33,12 @@ function extractAttrs(attr: Record<string, unknown>): {
   const mode = (attr.mode as HeatzyMode | undefined) ?? null;
   const timerSwitch = attr.timer_switch as 0 | 1 | undefined;
   const hasPro =
-    attr.cur_temp !== undefined ||
-    attr.cft_temp !== undefined ||
-    attr.eco_temp !== undefined;
+    attr.cur_temp      !== undefined ||
+    attr.cft_temp      !== undefined ||
+    attr.eco_temp      !== undefined ||
+    attr.window_switch !== undefined ||
+    attr.derog_mode    !== undefined ||
+    attr.lock_switch   !== undefined;
   const proAttrs: PiloteProAttrs | undefined = hasPro
     ? {
         cur_temp:      attr.cur_temp      as number | undefined,
@@ -47,6 +50,9 @@ function extractAttrs(attr: Record<string, unknown>): {
         derog_time:    attr.derog_time    as number | undefined,
         lock_switch:   attr.lock_switch   as 0 | 1 | undefined,
         timer_switch:  attr.timer_switch  as 0 | 1 | undefined,
+        temp_offset:      attr.temp_offset      as number | undefined,
+        temp_step:        attr.temp_step        as number | undefined,
+        eco_responsible:  attr.eco_responsible  as 0 | 1 | undefined,
       }
     : undefined;
   return { mode, proAttrs, timerSwitch };

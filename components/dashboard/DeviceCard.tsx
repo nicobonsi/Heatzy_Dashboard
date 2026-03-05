@@ -3,8 +3,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Device, HeatzyMode, ProductType, getProductType } from '@/types';
 import { StatusBadge } from '@/components/device/StatusBadge';
-import { ModeSelector } from '@/components/device/ModeSelector';
 import { PiloteProPanel } from '@/components/device/PiloteProPanel';
+import { PilotePanel } from '@/components/device/PilotePanel';
 import { DeviceNameEditor } from '@/components/device/DeviceNameEditor';
 import { ScheduleModal } from '@/components/schedule/ScheduleModal';
 import { useDeviceStatus, DeviceStatusUpdate } from '@/hooks/useDeviceStatus';
@@ -76,7 +76,6 @@ function initActivePlan(did: string, timerSwitch: 0 | 1 | undefined): ActivePlan
 
 export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onOnlineUpdate }: Props) {
   const productType = getProductType(device);
-  const pro = productType === 'pilote-pro';
   const badge = PRODUCT_BADGE[productType];
 
   // ── Mode state ────────────────────────────────────────────────────────────
@@ -260,12 +259,12 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
           <span className={`text-xs font-medium uppercase tracking-wide px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>
             {badge.label}
           </span>
-          {pro && device.proAttrs?.cur_temp !== undefined && (
+          {device.proAttrs?.cur_temp !== undefined && (
             <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
               🌡 {(device.proAttrs.cur_temp / 10).toFixed(1)} °C
             </span>
           )}
-          {pro && device.proAttrs?.cur_humi !== undefined && (
+          {device.proAttrs?.cur_humi !== undefined && (
             <span className="text-xs bg-teal-50 text-teal-600 px-2 py-0.5 rounded-full font-medium">
               💧 {device.proAttrs.cur_humi} %
             </span>
@@ -273,21 +272,19 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
         </div>
 
         {/* Controls */}
-        {pro ? (
-          <PiloteProPanel
+        {productType === 'pilote' ? (
+          <PilotePanel
             device={device}
             pendingMode={pendingMode}
             onModeChange={handleModeChange}
           />
         ) : (
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Mode :</p>
-            <ModeSelector
-              current={displayMode}
-              onChange={handleModeChange}
-              disabled={!!pendingMode}
-            />
-          </div>
+          <PiloteProPanel
+            device={device}
+            pendingMode={pendingMode}
+            onModeChange={handleModeChange}
+            productType={productType}
+          />
         )}
 
         {/* Schedule rows — grid keeps labels and toggles column-aligned */}

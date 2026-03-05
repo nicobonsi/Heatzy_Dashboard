@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Device, HeatzyMode, PiloteProControlMode, DerogationMode } from '@/types';
+import { Device, HeatzyMode, PiloteProControlMode, DerogationMode, ProductType } from '@/types';
 import { ModeSelector } from './ModeSelector';
 import { PiloteProTemperature } from './PiloteProTemperature';
 import { PiloteProPresence } from './PiloteProPresence';
@@ -12,6 +12,7 @@ interface Props {
   device: Device;
   pendingMode: HeatzyMode | null;
   onModeChange: (mode: HeatzyMode) => Promise<void>;
+  productType: ProductType;
 }
 
 type Tab = 'mode' | 'temperature' | 'presence';
@@ -22,13 +23,24 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'presence',    label: 'Présence',     icon: '👤' },
 ];
 
-export function PiloteProPanel({ device, pendingMode, onModeChange }: Props) {
+export function PiloteProPanel({ device, pendingMode, onModeChange, productType }: Props) {
   const [tab, setTab]                         = useState<Tab>('mode');
   const [controlMode, setControlMode]         = useState<PiloteProControlMode>('filpilote');
   const [windowEnabled, setWindowEnabled]     = useState<boolean>(
     device.proAttrs?.window_switch === 1
   );
+  const [lockEnabled, setLockEnabled]         = useState<boolean>(
+    device.proAttrs?.lock_switch === 1
+  );
   const [togglingWindow, setTogglingWindow]   = useState(false);
+  const [togglingLock, setTogglingLock]       = useState(false);
+  const [tempOffset, setTempOffset]           = useState<number>(device.proAttrs?.temp_offset ?? 0);
+  const [tempStep, setTempStep]               = useState<number>(device.proAttrs?.temp_step ?? 10);
+  const [savingOffset, setSavingOffset]       = useState(false);
+  const [ecoResponsible, setEcoResponsible]   = useState<boolean>(
+    device.proAttrs?.eco_responsible === 1
+  );
+  const [togglingEco, setTogglingEco]         = useState(false);
   const { showToast } = useToast();
 
   const proAttrs = device.proAttrs ?? {};
@@ -53,6 +65,59 @@ export function PiloteProPanel({ device, pendingMode, onModeChange }: Props) {
       setTogglingWindow(false);
     }
   }, [device.did, windowEnabled, showToast]);
+
+  // ── Lock ──────────────────────────────────────────────────────────────────
+  const handleToggleLock = useCallback(async () => {
+    const next = lockEnabled ? 0 : 1;
+    setTogglingLock(true);
+    try {
+      await api.controlDevice(device.did, { attrs: { lock_switch: next } });
+      setLockEnabled(next === 1);
+      showToast('success', next ? 'Verrouillage activé' : 'Verrouillage désactivé');
+    } catch {
+      showToast('error', 'Erreur lors du changement');
+    } finally {
+      setTogglingLock(false);
+    }
+  }, [device.did, lockEnabled, showToast]);
+
+  // ── Eco-responsible (Pilote Pro only) ────────────────────────────────────
+  const handleToggleEco = useCallback(async () => {
+    const next = ecoResponsible ? 0 : 1;
+    setTogglingEco(true);
+    try {
+      await api.controlDevice(device.did, { attrs: { eco_responsible: next } });
+      setEcoResponsible(next === 1);
+      showToast('success', next ? 'Mode éco-responsable activé' : 'Mode éco-responsable désactivé');
+    } catch {
+      showToast('error', 'Erreur lors du changement');
+    } finally {
+      setTogglingEco(false);
+    }
+  }, [device.did, ecoResponsible, showToast]);
+
+  // ── Calibration & step ────────────────────────────────────────────────────
+  const handleSaveOffset = useCallback(async () => {
+    setSavingOffset(true);
+    try {
+      await api.controlDevice(device.did, { attrs: { temp_offset: tempOffset } });
+      showToast('success', 'Étalonnage enregistré');
+    } catch {
+      showToast('error', "Erreur lors de l'enregistrement");
+    } finally {
+      setSavingOffset(false);
+    }
+  }, [device.did, tempOffset, showToast]);
+
+  const handleSaveStep = useCallback(async (step: number) => {
+    setTempStep(step);
+    try {
+      await api.controlDevice(device.did, { attrs: { temp_step: step } });
+      showToast('success', `Pas réglé sur ${step === 5 ? '0.5' : '1'}°C`);
+    } catch {
+      showToast('error', 'Erreur lors du changement');
+    }
+  }, [device.did, showToast]);
 
   // ── Derogation helpers ─────────────────────────────────────────────────────
   const sendDerog = useCallback(async (mode: DerogationMode, time: number) => {
@@ -185,18 +250,120 @@ export function PiloteProPanel({ device, pendingMode, onModeChange }: Props) {
               />
             </button>
           </div>
+
+          {/* Lock toggle */}
+          <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+            <div>
+              <p className="text-xs font-medium text-gray-700">🔒 Mode Verrouillage</p>
+              <p className="text-xs text-gray-400">Empêche toute modification sur le produit physique</p>
+            </div>
+            <button
+              onClick={handleToggleLock}
+              disabled={togglingLock}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                lockEnabled ? 'bg-emerald-500' : 'bg-gray-300'
+              } disabled:opacity-50`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                  lockEnabled ? 'translate-x-4.5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Eco-responsible (Pilote Pro only) */}
+          {productType === 'pilote-pro' && (
+            <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+              <div>
+                <p className="text-xs font-medium text-gray-700">🌿 Mode éco-responsable</p>
+                <p className="text-xs text-gray-400">Limite le Confort à 21°C (recommandation ADEME)</p>
+              </div>
+              <button
+                onClick={handleToggleEco}
+                disabled={togglingEco}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                  ecoResponsible ? 'bg-emerald-500' : 'bg-gray-300'
+                } disabled:opacity-50`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                    ecoResponsible ? 'translate-x-4.5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Thermostat tab ── */}
       {tab === 'temperature' && (
-        <PiloteProTemperature
-          curTemp={proAttrs.cur_temp}
-          curHumi={proAttrs.cur_humi}
-          cftTemp={proAttrs.cft_temp}
-          ecoTemp={proAttrs.eco_temp}
-          onSave={handleSaveTemps}
-        />
+        <div className="space-y-4">
+          <PiloteProTemperature
+            curTemp={proAttrs.cur_temp}
+            curHumi={proAttrs.cur_humi}
+            cftTemp={proAttrs.cft_temp}
+            ecoTemp={proAttrs.eco_temp}
+            onSave={handleSaveTemps}
+          />
+
+          {/* Advanced calibration settings */}
+          <div className="border-t border-gray-100 pt-3 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Réglages avancés</p>
+
+            {/* Étalonnage sonde */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-700">Étalonnage sonde</p>
+                  <p className="text-xs text-gray-400">Correction de -5°C à +5°C</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 text-xs font-bold leading-none"
+                    onClick={() => setTempOffset(Math.max(-50, tempOffset - 5))}
+                  >−</button>
+                  <span className="text-sm font-bold w-14 text-center text-indigo-700">
+                    {tempOffset >= 0 ? '+' : ''}{(tempOffset / 10).toFixed(1)}°C
+                  </span>
+                  <button
+                    className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 text-xs font-bold leading-none"
+                    onClick={() => setTempOffset(Math.min(50, tempOffset + 5))}
+                  >+</button>
+                </div>
+              </div>
+              <button
+                onClick={handleSaveOffset}
+                disabled={savingOffset}
+                className="w-full text-xs py-1.5 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-medium transition-colors disabled:opacity-50"
+              >
+                {savingOffset ? 'Enregistrement…' : 'Appliquer l\'étalonnage'}
+              </button>
+            </div>
+
+            {/* Réglage du pas */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-700">Pas de température</p>
+                <p className="text-xs text-gray-400">Incrément des boutons +/-</p>
+              </div>
+              <div className="flex gap-1">
+                {([{ val: 5, label: '0.5°C' }, { val: 10, label: '1°C' }]).map(({ val, label }) => (
+                  <button
+                    key={val}
+                    onClick={() => handleSaveStep(val)}
+                    className={`text-xs px-2 py-1 rounded border transition-colors ${
+                      tempStep === val
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Presence tab ── */}
