@@ -103,17 +103,8 @@ function TemperatureSlider({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className={`text-xs font-medium w-28 shrink-0 ${color}`}>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={0.5}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="flex-1 h-2 accent-current"
-      />
+    <div className="flex items-center justify-between gap-2">
+      <span className={`text-xs font-medium ${color}`}>{label}</span>
       <div className="flex items-center gap-1">
         <button
           className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 text-xs font-bold leading-none"
