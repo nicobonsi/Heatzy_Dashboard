@@ -110,62 +110,80 @@ export function PiloteProPresence({
 
       {/* --- Boost --- */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="bg-gray-50 px-3 py-2 flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-700">🔥 Boost Confort</span>
-          {isBoostActive && <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">Actif</span>}
-        </div>
-        <div className="px-3 py-3 space-y-2">
-          <p className="text-xs text-gray-500">
-            Force le mode Confort temporairement sans modifier la programmation.
-          </p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-600">Durée :</span>
-            {BOOST_DURATION_OPTIONS.map((m) => (
-              <button
-                key={m}
-                onClick={() => setBoostDuration(m)}
-                className={`text-xs px-2 py-1 rounded border transition-colors ${
-                  boostDuration === m
-                    ? 'bg-orange-500 text-white border-orange-500'
-                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {m >= 60 ? `${m / 60}h` : `${m}min`}
-              </button>
-            ))}
+        <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+          <div className="flex-1 flex items-center gap-1.5 min-w-0">
+            <span className="text-xs font-semibold text-gray-700">🔥 Boost Confort</span>
+            {isBoostActive && (
+              <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-medium shrink-0">Actif</span>
+            )}
           </div>
-          <Button size="sm" loading={loading} onClick={() => run(() => onSetBoost(boostDuration))}
-            className="bg-orange-500 hover:bg-orange-600 text-white">
-            Lancer le boost
-          </Button>
+          <button
+            onClick={() => run(() => isBoostActive ? onClearDerog() : onSetBoost(boostDuration))}
+            disabled={loading}
+            className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
+              isBoostActive ? 'bg-orange-500' : 'bg-gray-300'
+            } disabled:opacity-50`}
+          >
+            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+              isBoostActive ? 'translate-x-4' : 'translate-x-0.5'
+            }`} />
+          </button>
         </div>
+        <div className="flex items-center gap-1.5 px-3 pb-2.5 flex-wrap">
+          <span className="text-[10px] text-gray-400 shrink-0">Durée :</span>
+          {BOOST_DURATION_OPTIONS.map((m) => (
+            <button
+              key={m}
+              onClick={() => setBoostDuration(m)}
+              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                boostDuration === m
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {m >= 60 ? `${m / 60}h` : `${m}min`}
+            </button>
+          ))}
+        </div>
+        <p className="px-3 pb-2.5 text-[10px] text-gray-400 leading-snug border-t border-gray-100 pt-1.5">
+          Force le mode Confort temporairement sans modifier la programmation.
+        </p>
       </div>
 
       {/* --- Vacation --- */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="bg-gray-50 px-3 py-2 flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-700">✈️ Mode vacances</span>
-          {isVacationActive && <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">Actif</span>}
-        </div>
-        <div className="px-3 py-3 space-y-2">
-          <p className="text-xs text-gray-500">
-            Maintient le mode Hors-Gel pendant votre absence.
-          </p>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-600">Durée :</span>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setVacationDays(Math.max(1, vacationDays - 1))}
-                className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-sm font-bold">−</button>
-              <span className="text-sm font-bold w-12 text-center">{vacationDays}j</span>
-              <button onClick={() => setVacationDays(Math.min(255, vacationDays + 1))}
-                className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-sm font-bold">+</button>
-            </div>
+        <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+          <div className="flex-1 flex items-center gap-1.5 min-w-0">
+            <span className="text-xs font-semibold text-gray-700">✈️ Mode vacances</span>
+            {isVacationActive && (
+              <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium shrink-0">Actif</span>
+            )}
           </div>
-          <Button size="sm" loading={loading} onClick={() => run(() => onSetVacation(vacationDays))}
-            className="bg-blue-600 hover:bg-blue-700 text-white">
-            Activer les vacances
-          </Button>
+          <button
+            onClick={() => run(() => isVacationActive ? onClearDerog() : onSetVacation(vacationDays))}
+            disabled={loading}
+            className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
+              isVacationActive ? 'bg-blue-600' : 'bg-gray-300'
+            } disabled:opacity-50`}
+          >
+            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+              isVacationActive ? 'translate-x-4' : 'translate-x-0.5'
+            }`} />
+          </button>
         </div>
+        <div className="flex items-center gap-1.5 px-3 pb-2.5 flex-wrap">
+          <span className="text-[10px] text-gray-400 shrink-0">Durée :</span>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setVacationDays(Math.max(1, vacationDays - 1))}
+              className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 text-xs font-bold">−</button>
+            <span className="text-xs font-bold w-10 text-center">{vacationDays}j</span>
+            <button onClick={() => setVacationDays(Math.min(255, vacationDays + 1))}
+              className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 text-xs font-bold">+</button>
+          </div>
+        </div>
+        <p className="px-3 pb-2.5 text-[10px] text-gray-400 leading-snug border-t border-gray-100 pt-1.5">
+          Maintient le mode Hors-Gel pendant votre absence.
+        </p>
       </div>
     </div>
   );
