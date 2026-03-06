@@ -5,7 +5,6 @@ import { Device, HeatzyMode, DerogationMode } from '@/types';
 import { ModeSelector } from './ModeSelector';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/contexts/ToastContext';
-import { Button } from '@/components/ui/Button';
 
 interface Props {
   device: Device;
@@ -58,11 +57,11 @@ export function PilotePanel({ device, pendingMode, onModeChange }: Props) {
   const [boostDuration, setBoostDuration] = useState(60);
   const [vacationDays, setVacationDays]   = useState(7);
   const [loading, setLoading] = useState(false);
+  const [localDerogMode, setLocalDerogMode] = useState<DerogationMode>(proAttrs.derog_mode ?? DerogationMode.Off);
   const { showToast } = useToast();
 
-  const isBoostActive    = proAttrs.derog_mode === DerogationMode.Boost;
-  const isVacationActive = proAttrs.derog_mode === DerogationMode.Vacation;
-  const derogTime        = proAttrs.derog_time;
+  const isBoostActive    = localDerogMode === DerogationMode.Boost;
+  const isVacationActive = localDerogMode === DerogationMode.Vacation;
 
   const handleToggleLock = useCallback(async () => {
     const next = lockEnabled ? 0 : 1;
@@ -80,12 +79,16 @@ export function PilotePanel({ device, pendingMode, onModeChange }: Props) {
 
   const sendDerog = useCallback(async (mode: DerogationMode, time: number) => {
     setLoading(true);
+    const prev = localDerogMode;
+    setLocalDerogMode(mode);
     try {
       await api.controlDevice(device.did, { attrs: { derog_mode: mode, derog_time: time } });
+    } catch {
+      setLocalDerogMode(prev);
     } finally {
       setLoading(false);
     }
-  }, [device.did]);
+  }, [device.did, localDerogMode]);
 
   const handleClearDerog = useCallback(async () => {
     await sendDerog(DerogationMode.Off, 0);
@@ -132,23 +135,6 @@ export function PilotePanel({ device, pendingMode, onModeChange }: Props) {
       {/* ── Options tab ── */}
       {tab === 'options' && (
         <div className="space-y-3">
-          {/* Active derogation banner */}
-          {proAttrs.derog_mode !== undefined && proAttrs.derog_mode !== DerogationMode.Off && (
-            <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
-              isBoostActive
-                ? 'bg-orange-50 border border-orange-200'
-                : 'bg-blue-50 border border-blue-200'
-            }`}>
-              <span className="font-medium">
-                {isBoostActive    && `🔥 Boost actif${derogTime ? ` — ${derogTime}min` : ''}`}
-                {isVacationActive && `✈️ Vacances actif${derogTime ? ` — ${derogTime}j` : ''}`}
-              </span>
-              <Button size="sm" variant="ghost" loading={loading} onClick={handleClearDerog}>
-                Désactiver
-              </Button>
-            </div>
-          )}
-
           {/* Boost */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">

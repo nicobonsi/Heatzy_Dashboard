@@ -29,37 +29,20 @@ export function PiloteProPresence({
   const [boostDuration, setBoostDuration] = useState(60);
   const [vacationDays, setVacationDays] = useState(7);
   const [loading, setLoading] = useState(false);
+  const [localDerogMode, setLocalDerogMode] = useState<DerogationMode>(derogMode ?? DerogationMode.Off);
 
-  const isPresenceActive = derogMode === DerogationMode.Presence;
-  const isBoostActive    = derogMode === DerogationMode.Boost;
-  const isVacationActive = derogMode === DerogationMode.Vacation;
+  const isPresenceActive = localDerogMode === DerogationMode.Presence;
+  const isBoostActive    = localDerogMode === DerogationMode.Boost;
+  const isVacationActive = localDerogMode === DerogationMode.Vacation;
 
-  const run = async (fn: () => Promise<void>) => {
+  const run = async (fn: () => Promise<void>, nextMode: DerogationMode) => {
+    setLocalDerogMode(nextMode);
     setLoading(true);
-    try { await fn(); } finally { setLoading(false); }
+    try { await fn(); } catch { setLocalDerogMode(localDerogMode); } finally { setLoading(false); }
   };
 
   return (
     <div className="space-y-3">
-
-      {/* Current derogation status */}
-      {derogMode !== undefined && derogMode !== DerogationMode.Off && (
-        <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm
-          ${isPresenceActive ? 'bg-purple-50 border border-purple-200' :
-            isBoostActive    ? 'bg-orange-50 border border-orange-200' :
-                               'bg-blue-50 border border-blue-200'}`}
-        >
-          <span className="font-medium">
-            {isPresenceActive && '👤 Présence active'}
-            {isBoostActive    && '🔥 Boost actif'}
-            {isVacationActive && '✈️ Mode vacances'}
-            {derogTime !== undefined && ` — ${derogMode === DerogationMode.Vacation ? `${derogTime}j` : `${derogTime}min`}`}
-          </span>
-          <Button size="sm" variant="ghost" loading={loading} onClick={() => run(onClearDerog)}>
-            Désactiver
-          </Button>
-        </div>
-      )}
 
       {/* --- PIR / Presence detection --- */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -72,7 +55,7 @@ export function PiloteProPresence({
             )}
           </div>
           <button
-            onClick={() => run(() => onSetPresence(!isPresenceActive, presenceDuration))}
+            onClick={() => run(() => onSetPresence(!isPresenceActive, presenceDuration), isPresenceActive ? DerogationMode.Off : DerogationMode.Presence)}
             disabled={loading}
             className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
               isPresenceActive ? 'bg-purple-500' : 'bg-gray-300'
@@ -118,7 +101,7 @@ export function PiloteProPresence({
             )}
           </div>
           <button
-            onClick={() => run(() => isBoostActive ? onClearDerog() : onSetBoost(boostDuration))}
+            onClick={() => run(() => isBoostActive ? onClearDerog() : onSetBoost(boostDuration), isBoostActive ? DerogationMode.Off : DerogationMode.Boost)}
             disabled={loading}
             className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
               isBoostActive ? 'bg-orange-500' : 'bg-gray-300'
@@ -160,7 +143,7 @@ export function PiloteProPresence({
             )}
           </div>
           <button
-            onClick={() => run(() => isVacationActive ? onClearDerog() : onSetVacation(vacationDays))}
+            onClick={() => run(() => isVacationActive ? onClearDerog() : onSetVacation(vacationDays), isVacationActive ? DerogationMode.Off : DerogationMode.Vacation)}
             disabled={loading}
             className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
               isVacationActive ? 'bg-blue-600' : 'bg-gray-300'
