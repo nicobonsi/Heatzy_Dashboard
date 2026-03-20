@@ -28,11 +28,11 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          NEXT_PUBLIC_BASE_PATH: /Heatzy_Dashboard
 
-      - name: Add .nojekyll
-        run: touch out/.nojekyll
+      - name: Add .nojekyll and CNAME
+        run: |
+          touch out/.nojekyll
+          echo "dashboard.heatzy.com" > out/CNAME
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
