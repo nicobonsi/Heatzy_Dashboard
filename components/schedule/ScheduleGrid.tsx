@@ -246,9 +246,7 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
               {Array.from({ length: 7 }, (_, day) => (
                 <div
                   key={day}
-                  className={`px-px ${
-                    selectedDays.has(day) ? 'bg-blue-100/50' : day === currentDay ? 'bg-blue-50' : ''
-                  }`}
+                  className={selectedDays.has(day) ? 'bg-blue-100/50' : day === currentDay ? 'bg-blue-50' : ''}
                 >
                   <ScheduleCell
                     mode={schedule[day][slot]}
