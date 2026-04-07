@@ -314,10 +314,10 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
                     <button
                       onClick={() => setCopySource(isCopySource ? null : day)}
                       title={isCopySource ? 'Annuler' : `Copier ${label}`}
-                      className={`text-xs px-1.5 py-1 rounded transition-colors ${
+                      className={`text-[22px] px-1.5 py-1 rounded transition-colors leading-none ${
                         isCopySource
                           ? 'text-blue-600 bg-blue-100'
-                          : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
+                          : 'text-gray-900 hover:text-blue-500 hover:bg-blue-50'
                       }`}
                     >
                       ⎘
