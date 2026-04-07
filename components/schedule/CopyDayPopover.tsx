@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { DAY_LABELS } from '@/lib/schedule';
 
 interface Props {
@@ -13,6 +14,8 @@ interface Props {
 
 export function CopyDayPopover({ sourceDay, anchorRect, onPaste, onPasteAll, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // Position below the anchor button, centred on it
   const POPOVER_W = 224;
@@ -49,7 +52,9 @@ export function CopyDayPopover({ sourceDay, anchorRect, onPaste, onPasteAll, onC
     };
   }, [onClose]);
 
-  return (
+  if (!mounted) return null;
+
+  const popover = (
     <div
       ref={ref}
       style={{ position: 'fixed', top, left, width: POPOVER_W, zIndex: 9999 }}
@@ -92,4 +97,6 @@ export function CopyDayPopover({ sourceDay, anchorRect, onPaste, onPasteAll, onC
       </button>
     </div>
   );
+
+  return createPortal(popover, document.body);
 }
