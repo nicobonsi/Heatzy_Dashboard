@@ -174,7 +174,7 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
                       onClick={() => isCopySource ? setCopySource(null) : setCopySource(d)}
                       title={isCopySource ? 'Annuler la copie' : `Copier ${day}`}
                       className={`text-[11px] px-0.5 rounded transition-colors leading-none ${
-                        isCopySource ? 'text-blue-600' : 'text-gray-300 hover:text-gray-500'
+                        isCopySource ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
                       }`}
                     >
                       ⎘

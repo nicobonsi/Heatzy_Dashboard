@@ -231,7 +231,7 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
             return (
               <div
                 key={day}
-                className={`flex items-center gap-2 rounded-lg px-1 py-0.5 group ${
+                className={`flex items-center gap-2 rounded-lg px-1 py-0.5 ${
                   isCopySource ? 'bg-blue-50' : ''
                 }`}
               >
@@ -309,7 +309,7 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
                 </div>
 
                 {/* Per-row actions */}
-                <div className="flex gap-1 shrink-0 w-12 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-1 shrink-0 w-12 justify-end">
                   {onCopyDay && !isPasteTarget && (
                     <button
                       onClick={() => setCopySource(isCopySource ? null : day)}
