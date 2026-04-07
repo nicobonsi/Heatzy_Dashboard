@@ -1,12 +1,22 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ScheduleGrid } from './ScheduleGrid';
+import { ScheduleTimeline } from './ScheduleTimeline';
 import { useSchedule } from '@/hooks/useSchedule';
 import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/contexts/ToastContext';
+
+type EditorMode = 'grid' | 'timeline';
+
+const EDITOR_PREF_KEY = 'heatzy-schedule-editor';
+
+function loadEditorPref(): EditorMode {
+  if (typeof window === 'undefined') return 'grid';
+  return (localStorage.getItem(EDITOR_PREF_KEY) as EditorMode) ?? 'grid';
+}
 
 interface Props {
   did: string;
@@ -20,9 +30,16 @@ export function ScheduleModal({ did, deviceName, which = 'primary', onClose }: P
     useSchedule(did, which);
   const { showToast } = useToast();
 
+  const [editorMode, setEditorMode] = useState<EditorMode>(loadEditorPref);
+
   useEffect(() => {
     loadSchedule();
   }, [loadSchedule]);
+
+  const switchEditor = (mode: EditorMode) => {
+    setEditorMode(mode);
+    localStorage.setItem(EDITOR_PREF_KEY, mode);
+  };
 
   const handleSave = async () => {
     try {
@@ -50,14 +67,54 @@ export function ScheduleModal({ did, deviceName, which = 'primary', onClose }: P
         </div>
       ) : (
         <div className="space-y-4">
-          <ScheduleGrid
-            schedule={schedule}
-            onCellChange={updateCell}
-            onFillDay={fillDay}
-            onFillAll={fillAll}
-            onCopyDay={copyDay}
-            onApplyPreset={applyPreset}
-          />
+
+          {/* Editor toggle */}
+          <div className="flex justify-center">
+            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 gap-0.5">
+              <button
+                onClick={() => switchEditor('grid')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  editorMode === 'grid'
+                    ? 'bg-white text-gray-800 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                ☰ Grille classique
+              </button>
+              <button
+                onClick={() => switchEditor('timeline')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  editorMode === 'timeline'
+                    ? 'bg-white text-gray-800 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                ▬ Éditeur visuel
+              </button>
+            </div>
+          </div>
+
+          {/* Editor */}
+          {editorMode === 'grid' ? (
+            <ScheduleGrid
+              schedule={schedule}
+              onCellChange={updateCell}
+              onFillDay={fillDay}
+              onFillAll={fillAll}
+              onCopyDay={copyDay}
+              onApplyPreset={applyPreset}
+            />
+          ) : (
+            <ScheduleTimeline
+              schedule={schedule}
+              onCellChange={updateCell}
+              onFillDay={fillDay}
+              onCopyDay={copyDay}
+              onApplyPreset={applyPreset}
+            />
+          )}
+
+          {/* Footer */}
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="secondary" onClick={onClose}>
               Annuler
