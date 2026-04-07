@@ -13,6 +13,7 @@ import {
   loadActivePlan,
   saveActivePlan,
   loadStoredSchedule,
+  hasSavedSchedule,
 } from '@/lib/scheduleStorage';
 import { encodeWeekSchedule } from '@/lib/schedule';
 import { api } from '@/lib/api/client';
@@ -46,15 +47,15 @@ const MODE_LABEL: Record<string, string> = {
   cft1: 'Confort -1', cft2: 'Confort -2', stop: 'Arrêt',
 };
 
-function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+function ToggleSwitch({ checked, onChange, unsaved }: { checked: boolean; onChange: () => void; unsaved?: boolean }) {
   return (
     <button
       role="switch"
       aria-checked={checked}
       onClick={onChange}
       className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
-        checked ? 'bg-blue-500' : 'bg-gray-300'
-      }`}
+        unsaved ? 'opacity-40 cursor-not-allowed' : ''
+      } ${checked ? 'bg-blue-500' : 'bg-gray-300'}`}
     >
       <span
         className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
@@ -107,6 +108,12 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
   const [isOnline, setIsOnline]         = useState(device.isOnline);
   const [showSchedule, setShowSchedule] = useState<null | 'primary' | 'alt'>(null);
   const { showToast } = useToast();
+
+  // ── Saved-schedule flags (set only when user clicks Save in modal) ────────
+  const [savedPlans, setSavedPlans] = useState(() => ({
+    primary: hasSavedSchedule(device.did, 'primary'),
+    alt:     hasSavedSchedule(device.did, 'alt'),
+  }));
 
   const displayMode = pendingMode ?? localMode ?? device.currentMode;
   const displayModeRef = useRef(displayMode);
@@ -214,12 +221,13 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
     }
 
     // ── Activate ──
-    // For alt: require that it has been saved at least once
-    const stored = loadStoredSchedule(device.did, which);
-    if (!stored && which === 'alt') {
-      showToast('info', `Créez d'abord votre Planning Alternatif en cliquant sur le bouton 📅`);
+    // Both plannings must be explicitly saved before they can be toggled on
+    if (!hasSavedSchedule(device.did, which)) {
+      const label = which === 'primary' ? 'Planning' : 'Planning Alternatif';
+      showToast('info', `Configurez d'abord votre ${label} en cliquant sur 📅, puis sauvegardez-le`);
       return;
     }
+    const stored = loadStoredSchedule(device.did, which);
 
     preSentTimerSwitchRef.current = activePlan !== 'none' ? 1 : 0;
     timerSuppressExpiryRef.current = Date.now() + 90_000;
@@ -290,29 +298,36 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
         {/* Schedule rows — grid keeps labels and toggles column-aligned */}
         <div className="pt-1 border-t border-gray-100">
           <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-px">
-            {(['primary', 'alt'] as const).flatMap((which) => [
-              <button
-                key={`label-${which}`}
-                onClick={() => setShowSchedule(which)}
-                className="text-left text-xs py-1.5 text-gray-500 hover:text-blue-600 transition-colors truncate"
-              >
-                📅{' '}
-                <span className="font-medium">
-                  {which === 'primary' ? 'Planning' : 'Planning alternatif'}
-                </span>
-                {activePlan === which && displayMode && (
-                  <span className="ml-1 text-blue-600">
-                    · {MODE_LABEL[displayMode] ?? displayMode}
+            {(['primary', 'alt'] as const).flatMap((which) => {
+              const isSaved = savedPlans[which];
+              return [
+                <button
+                  key={`label-${which}`}
+                  onClick={() => setShowSchedule(which)}
+                  className="text-left text-xs py-1.5 text-gray-500 hover:text-blue-600 transition-colors truncate"
+                >
+                  📅{' '}
+                  <span className="font-medium">
+                    {which === 'primary' ? 'Planning' : 'Planning alternatif'}
                   </span>
-                )}
-              </button>,
-              <div key={`toggle-${which}`} className="flex justify-end">
-                <ToggleSwitch
-                  checked={activePlan === which}
-                  onChange={() => handleScheduleToggle(which)}
-                />
-              </div>,
-            ])}
+                  {activePlan === which && displayMode && (
+                    <span className="ml-1 text-blue-600">
+                      · {MODE_LABEL[displayMode] ?? displayMode}
+                    </span>
+                  )}
+                  {!isSaved && (
+                    <span className="ml-1 text-gray-400 italic">— non configuré</span>
+                  )}
+                </button>,
+                <div key={`toggle-${which}`} className="flex justify-end">
+                  <ToggleSwitch
+                    checked={activePlan === which}
+                    onChange={() => handleScheduleToggle(which)}
+                    unsaved={!isSaved}
+                  />
+                </div>,
+              ];
+            })}
           </div>
         </div>
       </div>
@@ -322,7 +337,14 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
           did={device.did}
           deviceName={device.name}
           which={showSchedule}
-          onClose={() => setShowSchedule(null)}
+          onClose={() => {
+            setShowSchedule(null);
+            // Refresh saved flags in case the user just saved a planning
+            setSavedPlans({
+              primary: hasSavedSchedule(device.did, 'primary'),
+              alt:     hasSavedSchedule(device.did, 'alt'),
+            });
+          }}
         />
       )}
     </>

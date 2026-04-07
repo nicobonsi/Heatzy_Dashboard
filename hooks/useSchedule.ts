@@ -12,6 +12,7 @@ import {
   loadStoredSchedule,
   saveStoredSchedule,
   loadActivePlan,
+  markScheduleSaved,
 } from '@/lib/scheduleStorage';
 import { api } from '@/lib/api/client';
 
@@ -80,8 +81,9 @@ export function useSchedule(did: string, which: 'primary' | 'alt' = 'primary') {
   const saveSchedule = useCallback(async () => {
     setSaving(true);
     try {
-      // Always persist to localStorage
+      // Always persist to localStorage and mark as explicitly saved
       saveStoredSchedule(did, which, schedule);
+      markScheduleSaved(did, which);
 
       // Upload to device:
       //   primary → always, unless alt is currently active (alt has the device slot)
