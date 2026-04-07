@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { WeekSchedule, ScheduleMode } from '@/types';
 import { DAY_LABELS, SCHEDULE_PRESETS } from '@/lib/schedule';
+import { CopyDayPopover } from './CopyDayPopover';
 
 const PRESET_COLORS = [
   'bg-blue-600 hover:bg-blue-700',
@@ -19,7 +20,6 @@ const MODE_META: Record<ScheduleMode, { label: string; bar: string; ring: string
   fro: { label: 'Hors Gel', bar: 'bg-blue-300',   ring: 'ring-blue-300' },
 };
 
-// Hour markers on the axis
 const AXIS_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
 interface Props {
@@ -31,18 +31,18 @@ interface Props {
 }
 
 export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay, onApplyPreset }: Props) {
-  const [brushMode, setBrushMode] = useState<ScheduleMode>('cft');
+  const [brushMode, setBrushMode]   = useState<ScheduleMode>('cft');
   const [copySource, setCopySource] = useState<number | null>(null);
-  const [pasteTargets, setPasteTargets] = useState<Set<number>>(new Set());
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [hoveredSlot, setHoveredSlot] = useState<{ day: number; slot: number } | null>(null);
 
-  // Drag state via refs (avoids stale closure issues in event listeners)
+  // Drag state via refs
   const isDraggingRef = useRef(false);
   const dragDayRef    = useRef<number | null>(null);
   const lastSlotRef   = useRef<number | null>(null);
   const barRefs       = useRef<(HTMLDivElement | null)[]>([]);
+  const copyBtnRefs   = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // Current time
   const now            = new Date();
   const currentDay     = (now.getDay() + 6) % 7;
   const currentSlot    = now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0);
@@ -64,7 +64,7 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
     [brushMode, onCellChange],
   );
 
-  // ── Mouse events ─────────────────────────────────────────────────────────────
+  // ── Mouse painting ───────────────────────────────────────────────────────────
   const handleBarMouseDown = useCallback(
     (day: number, e: React.MouseEvent<HTMLDivElement>) => {
       if (copySource !== null) return;
@@ -97,7 +97,7 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
     };
   }, [getSlotFromX, paintSlot]);
 
-  // ── Touch events ─────────────────────────────────────────────────────────────
+  // ── Touch painting ───────────────────────────────────────────────────────────
   const handleBarTouchStart = useCallback(
     (day: number, e: React.TouchEvent<HTMLDivElement>) => {
       if (copySource !== null) return;
@@ -121,44 +121,32 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
   );
 
   // ── Copy / paste ─────────────────────────────────────────────────────────────
-  const handleCopyDay = (day: number) => {
+  const openCopyPopover = (day: number) => {
+    const btn = copyBtnRefs.current[day];
+    if (!btn) return;
     setCopySource(day);
-    setPasteTargets(new Set());
+    setAnchorRect(btn.getBoundingClientRect());
   };
 
-  const togglePasteTarget = (day: number) => {
-    if (day === copySource) return;
-    setPasteTargets((prev) => {
-      const next = new Set(prev);
-      if (next.has(day)) next.delete(day);
-      else next.add(day);
-      return next;
-    });
-  };
-
-  const handleSelectAllTargets = () => {
-    if (copySource === null) return;
-    setPasteTargets(new Set([0, 1, 2, 3, 4, 5, 6].filter((d) => d !== copySource)));
-  };
-
-  const handlePaste = () => {
+  const handlePaste = (target: number) => {
     if (copySource === null || !onCopyDay) return;
-    pasteTargets.forEach((target) => onCopyDay(copySource, target));
+    onCopyDay(copySource, target);
     setCopySource(null);
-    setPasteTargets(new Set());
+    setAnchorRect(null);
   };
 
-  const cancelCopy = () => {
+  const handlePasteAll = () => {
+    if (copySource === null || !onCopyDay) return;
+    [0, 1, 2, 3, 4, 5, 6].filter((d) => d !== copySource).forEach((d) => onCopyDay(copySource, d));
     setCopySource(null);
-    setPasteTargets(new Set());
+    setAnchorRect(null);
   };
 
-  // ── Presets ───────────────────────────────────────────────────────────────────
-  const handlePresetApply = (pattern: ScheduleMode[]) => {
-    onApplyPreset?.([0, 1, 2, 3, 4, 5, 6], pattern);
+  const closePopover = () => {
+    setCopySource(null);
+    setAnchorRect(null);
   };
 
-  // ── Tooltip label for hovered slot ────────────────────────────────────────────
   const slotToTime = (slot: number) => {
     const h = Math.floor(slot / 2).toString().padStart(2, '0');
     const m = slot % 2 === 0 ? '00' : '30';
@@ -192,7 +180,7 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
           })}
         </div>
         <span className="text-xs text-gray-400 italic hidden sm:inline">
-          Cliquez ou faites glisser sur une journée pour peindre
+          Cliquez ou faites glisser pour peindre
         </span>
       </div>
 
@@ -203,7 +191,7 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
           {SCHEDULE_PRESETS.map((preset, i) => (
             <button
               key={preset.id}
-              onClick={() => handlePresetApply(preset.pattern)}
+              onClick={() => onApplyPreset?.([0, 1, 2, 3, 4, 5, 6], preset.pattern)}
               title={preset.description}
               className={`w-8 h-8 rounded-full text-white text-[11px] font-bold shadow-sm transition-colors flex items-center justify-center ${PRESET_COLORS[i]}`}
             >
@@ -213,55 +201,6 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
         </div>
         <span className="text-[10px] text-gray-400 italic">Applique à toute la semaine</span>
       </div>
-
-      {/* ── Copy / paste panel ──────────────────────────────────────────────── */}
-      {copySource !== null && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2.5">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-semibold text-blue-700">
-              📋 Copier <strong>{DAY_LABELS[copySource]}</strong> vers :
-            </span>
-            <div className="flex gap-1.5 flex-wrap">
-              {DAY_LABELS.map((label, d) =>
-                d === copySource ? null : (
-                  <button
-                    key={d}
-                    onClick={() => togglePasteTarget(d)}
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors ${
-                      pasteTargets.has(d)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-100'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ),
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={handleSelectAllTargets}
-              className="px-3 py-1 rounded-lg bg-white text-blue-600 border border-blue-300 text-xs font-medium hover:bg-blue-50 transition-colors"
-            >
-              Tout sélectionner
-            </button>
-            <button
-              onClick={handlePaste}
-              disabled={pasteTargets.size === 0}
-              className="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Coller ({pasteTargets.size} jour{pasteTargets.size > 1 ? 's' : ''})
-            </button>
-            <button
-              onClick={cancelCopy}
-              className="px-3 py-1 rounded-lg bg-white text-gray-500 border border-gray-200 text-xs font-medium hover:bg-gray-50 transition-colors"
-            >
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── Timeline ────────────────────────────────────────────────────────── */}
       <div>
@@ -273,7 +212,7 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
               className="absolute text-[10px] text-gray-400 -translate-x-1/2"
               style={{ left: `${(h / 24) * 100}%` }}
             >
-              {h === 0 || h === 24 ? `${h}h` : `${h}h`}
+              {h}h
             </span>
           ))}
         </div>
@@ -281,16 +220,14 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
         {/* Day rows */}
         <div className="space-y-1">
           {DAY_LABELS.map((label, day) => {
-            const isToday       = day === currentDay;
-            const isCopySource  = copySource === day;
-            const isPasteTarget = pasteTargets.has(day);
+            const isToday      = day === currentDay;
+            const isCopySource = copySource === day;
 
             return (
               <div
                 key={day}
-                className={`flex items-center gap-2 rounded-lg px-1 py-0.5 transition-colors group ${
-                  isCopySource  ? 'bg-blue-50' :
-                  isPasteTarget ? 'bg-blue-50/60' : ''
+                className={`flex items-center gap-2 rounded-lg px-1 py-0.5 group ${
+                  isCopySource ? 'bg-blue-50' : ''
                 }`}
               >
                 {/* Day label */}
@@ -306,9 +243,8 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
                 {/* Timeline bar */}
                 <div
                   ref={(el) => { barRefs.current[day] = el; }}
-                  className={`relative flex-1 h-8 rounded-md overflow-hidden cursor-crosshair select-none transition-shadow ${
-                    isCopySource  ? 'ring-2 ring-blue-400 ring-offset-1' :
-                    isPasteTarget ? 'ring-2 ring-blue-300 ring-offset-1' : ''
+                  className={`relative flex-1 h-8 rounded-md overflow-hidden cursor-crosshair select-none ${
+                    isCopySource ? 'ring-2 ring-blue-400 ring-offset-1' : ''
                   }`}
                   onMouseDown={(e) => handleBarMouseDown(day, e)}
                   onMouseMove={(e) => {
@@ -322,10 +258,7 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
                   {/* Mode segments */}
                   <div className="absolute inset-0 flex">
                     {schedule[day].map((mode, slot) => (
-                      <div
-                        key={slot}
-                        className={`flex-1 ${MODE_META[mode].bar}`}
-                      />
+                      <div key={slot} className={`flex-1 ${MODE_META[mode].bar}`} />
                     ))}
                   </div>
 
@@ -349,30 +282,33 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
                   {/* Hover time tooltip */}
                   {hoveredSlot?.day === day && (
                     <div
-                      className="absolute top-0 bottom-0 flex items-center pointer-events-none z-20"
+                      className="absolute top-0 bottom-0 flex items-start pointer-events-none z-20"
                       style={{ left: `${(hoveredSlot.slot / 48) * 100}%` }}
                     >
-                      <div className="absolute -top-0.5 left-1 bg-gray-800 text-white text-[9px] px-1 py-0.5 rounded whitespace-nowrap">
+                      <div className="bg-gray-800 text-white text-[9px] px-1 py-0.5 rounded whitespace-nowrap mt-0.5 ml-0.5">
                         {slotToTime(hoveredSlot.slot)}
                       </div>
-                      <div className="w-px h-full bg-white/60" />
+                      <div className="absolute top-0 bottom-0 w-px bg-white/60" />
                     </div>
                   )}
                 </div>
 
-                {/* Per-row actions (visible on hover) */}
+                {/* Per-row actions */}
                 <div className="flex gap-1 shrink-0 w-12 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleCopyDay(day)}
-                    title="Copier ce jour"
-                    className={`text-xs px-1.5 py-1 rounded transition-colors ${
-                      isCopySource
-                        ? 'text-blue-600 bg-blue-100'
-                        : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
-                    }`}
-                  >
-                    ⎘
-                  </button>
+                  {onCopyDay && (
+                    <button
+                      ref={(el) => { copyBtnRefs.current[day] = el; }}
+                      onClick={() => isCopySource ? closePopover() : openCopyPopover(day)}
+                      title={isCopySource ? 'Fermer' : `Copier ${label}`}
+                      className={`text-xs px-1.5 py-1 rounded transition-colors ${
+                        isCopySource
+                          ? 'text-blue-600 bg-blue-100'
+                          : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
+                      }`}
+                    >
+                      ⎘
+                    </button>
+                  )}
                   <button
                     onClick={() => onFillDay?.(day, 'eco')}
                     title="Réinitialiser en Éco"
@@ -397,6 +333,17 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
         ))}
         <span className="text-gray-400 italic">⎘ copier un jour · ✕ réinitialiser en Éco</span>
       </div>
+
+      {/* ── Copy popover ─────────────────────────────────────────────────────── */}
+      {copySource !== null && anchorRect && (
+        <CopyDayPopover
+          sourceDay={copySource}
+          anchorRect={anchorRect}
+          onPaste={handlePaste}
+          onPasteAll={handlePasteAll}
+          onClose={closePopover}
+        />
+      )}
     </div>
   );
 }
