@@ -231,8 +231,8 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
           {/* Half-hour rows — compact */}
           {HALF_HOUR_LABELS.map((label, slot) => (
             <div key={slot} className="contents">
-              {/* Time label */}
-              <div className="flex items-center justify-end pr-1 gap-0.5">
+              {/* Time label — same height as cell so row height matches exactly */}
+              <div className="flex h-4 items-center justify-end pr-1 gap-0.5 border-b border-white">
                 {slot === currentSlot && (
                   <span className="text-blue-500 text-[9px] leading-none">▶</span>
                 )}
@@ -246,7 +246,9 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
               {Array.from({ length: 7 }, (_, day) => (
                 <div
                   key={day}
-                  className={selectedDays.has(day) ? 'bg-blue-100/50' : day === currentDay ? 'bg-blue-50' : ''}
+                  className={`${day < 6 ? 'border-r border-white' : ''} ${
+                    selectedDays.has(day) ? 'bg-blue-100/50' : day === currentDay ? 'bg-blue-50' : ''
+                  }`}
                 >
                   <ScheduleCell
                     mode={schedule[day][slot]}
