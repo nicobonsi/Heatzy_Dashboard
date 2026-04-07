@@ -224,7 +224,7 @@ export function DeviceCard({ device, refreshKey, onModeUpdate, onNameUpdate, onO
     // Both plannings must be explicitly saved before they can be toggled on
     if (!hasSavedSchedule(device.did, which)) {
       const label = which === 'primary' ? 'Planning' : 'Planning Alternatif';
-      showToast('info', `Configurez d'abord votre ${label} en cliquant sur 📅, puis sauvegardez-le`);
+      showToast('info', `Configurez d'abord votre ${label} en cliquant sur 📅, puis enregistrez-le`);
       return;
     }
     const stored = loadStoredSchedule(device.did, which);

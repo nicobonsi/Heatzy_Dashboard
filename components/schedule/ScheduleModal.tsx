@@ -28,7 +28,7 @@ export function ScheduleModal({ did, deviceName, which = 'primary', onClose }: P
     try {
       const result = await saveSchedule();
       if (which === 'alt' && !result?.uploadedToDevice) {
-        showToast('success', 'Planning alternatif sauvegardé — activez-le via le bouton sur la carte');
+        showToast('success', 'Planning alternatif enregistré — activez-le via le bouton sur la carte');
       } else {
         showToast('success', 'Planning enregistré');
       }
@@ -63,7 +63,7 @@ export function ScheduleModal({ did, deviceName, which = 'primary', onClose }: P
               Annuler
             </Button>
             <Button onClick={handleSave} loading={saving}>
-              {which === 'alt' ? 'Sauvegarder le planning alternatif' : 'Enregistrer le planning'}
+              {which === 'alt' ? 'Enregistrer le planning alternatif' : 'Enregistrer le planning'}
             </Button>
           </div>
         </div>
