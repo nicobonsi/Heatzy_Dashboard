@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { WeekSchedule, ScheduleMode } from '@/types';
 import { DAY_LABELS, SCHEDULE_PRESETS } from '@/lib/schedule';
-import { CopyDayPopover } from './CopyDayPopover';
 
 const PRESET_COLORS = [
   'bg-blue-600 hover:bg-blue-700',
@@ -31,9 +30,8 @@ interface Props {
 }
 
 export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay, onApplyPreset }: Props) {
-  const [brushMode, setBrushMode]   = useState<ScheduleMode>('cft');
-  const [copySource, setCopySource] = useState<number | null>(null);
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [brushMode, setBrushMode]     = useState<ScheduleMode>('cft');
+  const [copySource, setCopySource]   = useState<number | null>(null);
   const [hoveredSlot, setHoveredSlot] = useState<{ day: number; slot: number } | null>(null);
 
   // Drag state via refs
@@ -41,7 +39,6 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
   const dragDayRef    = useRef<number | null>(null);
   const lastSlotRef   = useRef<number | null>(null);
   const barRefs       = useRef<(HTMLDivElement | null)[]>([]);
-  const copyBtnRefs   = useRef<(HTMLButtonElement | null)[]>([]);
 
   const now            = new Date();
   const currentDay     = (now.getDay() + 6) % 7;
@@ -121,30 +118,16 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
   );
 
   // ── Copy / paste ─────────────────────────────────────────────────────────────
-  const openCopyPopover = (day: number) => {
-    const btn = copyBtnRefs.current[day];
-    if (!btn) return;
-    setCopySource(day);
-    setAnchorRect(btn.getBoundingClientRect());
-  };
-
-  const handlePaste = (target: number) => {
+  const handlePasteToDay = (target: number) => {
     if (copySource === null || !onCopyDay) return;
     onCopyDay(copySource, target);
     setCopySource(null);
-    setAnchorRect(null);
   };
 
   const handlePasteAll = () => {
     if (copySource === null || !onCopyDay) return;
     [0, 1, 2, 3, 4, 5, 6].filter((d) => d !== copySource).forEach((d) => onCopyDay(copySource, d));
     setCopySource(null);
-    setAnchorRect(null);
-  };
-
-  const closePopover = () => {
-    setCopySource(null);
-    setAnchorRect(null);
   };
 
   const slotToTime = (slot: number) => {
@@ -202,6 +185,27 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
         <span className="text-[10px] text-gray-400 italic">Applique à toute la semaine</span>
       </div>
 
+      {/* ── Copy mode banner ────────────────────────────────────────────────── */}
+      {copySource !== null && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <span className="text-xs text-blue-700 font-medium">
+            📋 <strong>{DAY_LABELS[copySource]}</strong> copié — cliquez sur un jour pour coller
+          </span>
+          <button
+            onClick={handlePasteAll}
+            className="ml-auto text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-medium hover:bg-blue-700 transition-colors shrink-0"
+          >
+            Coller partout
+          </button>
+          <button
+            onClick={() => setCopySource(null)}
+            className="text-xs text-blue-400 hover:text-blue-600 transition-colors shrink-0"
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
       {/* ── Timeline ────────────────────────────────────────────────────────── */}
       <div>
         {/* Hour axis */}
@@ -220,8 +224,9 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
         {/* Day rows */}
         <div className="space-y-1">
           {DAY_LABELS.map((label, day) => {
-            const isToday      = day === currentDay;
-            const isCopySource = copySource === day;
+            const isToday       = day === currentDay;
+            const isCopySource  = copySource === day;
+            const isPasteTarget = copySource !== null && day !== copySource;
 
             return (
               <div
@@ -230,15 +235,25 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
                   isCopySource ? 'bg-blue-50' : ''
                 }`}
               >
-                {/* Day label */}
-                <div className={`w-12 shrink-0 text-right text-xs font-semibold leading-none ${
-                  isToday ? 'text-blue-600' : 'text-gray-500'
-                }`}>
-                  {label}
-                  {isToday && (
-                    <span className="block w-1.5 h-1.5 rounded-full bg-blue-500 ml-auto mt-0.5" />
-                  )}
-                </div>
+                {/* Day label — becomes paste button in copy mode */}
+                {isPasteTarget ? (
+                  <button
+                    onClick={() => handlePasteToDay(day)}
+                    className="w-12 shrink-0 text-right text-xs font-bold leading-none text-white bg-blue-500 rounded px-1 py-0.5 hover:bg-blue-600 transition-colors"
+                  >
+                    {label}
+                    <span className="block text-[8px] leading-none mt-0.5">↓</span>
+                  </button>
+                ) : (
+                  <div className={`w-12 shrink-0 text-right text-xs font-semibold leading-none ${
+                    isToday ? 'text-blue-600' : 'text-gray-500'
+                  }`}>
+                    {label}
+                    {isToday && (
+                      <span className="block w-1.5 h-1.5 rounded-full bg-blue-500 ml-auto mt-0.5" />
+                    )}
+                  </div>
+                )}
 
                 {/* Timeline bar */}
                 <div
@@ -295,11 +310,10 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
 
                 {/* Per-row actions */}
                 <div className="flex gap-1 shrink-0 w-12 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                  {onCopyDay && (
+                  {onCopyDay && !isPasteTarget && (
                     <button
-                      ref={(el) => { copyBtnRefs.current[day] = el; }}
-                      onClick={() => isCopySource ? closePopover() : openCopyPopover(day)}
-                      title={isCopySource ? 'Fermer' : `Copier ${label}`}
+                      onClick={() => setCopySource(isCopySource ? null : day)}
+                      title={isCopySource ? 'Annuler' : `Copier ${label}`}
                       className={`text-xs px-1.5 py-1 rounded transition-colors ${
                         isCopySource
                           ? 'text-blue-600 bg-blue-100'
@@ -334,16 +348,6 @@ export function ScheduleTimeline({ schedule, onCellChange, onFillDay, onCopyDay,
         <span className="text-gray-400 italic">⎘ copier un jour · ✕ réinitialiser en Éco</span>
       </div>
 
-      {/* ── Copy popover ─────────────────────────────────────────────────────── */}
-      {copySource !== null && anchorRect && (
-        <CopyDayPopover
-          sourceDay={copySource}
-          anchorRect={anchorRect}
-          onPaste={handlePaste}
-          onPasteAll={handlePasteAll}
-          onClose={closePopover}
-        />
-      )}
     </div>
   );
 }

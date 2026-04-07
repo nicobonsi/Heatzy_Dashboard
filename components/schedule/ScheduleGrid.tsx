@@ -3,7 +3,6 @@
 import { useRef, useState } from 'react';
 import { WeekSchedule, ScheduleMode } from '@/types';
 import { ScheduleCell } from './ScheduleCell';
-import { CopyDayPopover } from './CopyDayPopover';
 import { DAY_LABELS, HALF_HOUR_LABELS, SCHEDULE_PRESETS, nextScheduleMode } from '@/lib/schedule';
 
 const PRESET_COLORS = [
@@ -27,8 +26,6 @@ interface Props {
 export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset }: Props) {
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set());
   const [copySource, setCopySource]     = useState<number | null>(null);
-  const [anchorRect, setAnchorRect]     = useState<DOMRect | null>(null);
-  const copyBtnRefs                     = useRef<(HTMLButtonElement | null)[]>([]);
 
   const now         = new Date();
   const currentSlot = now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0);
@@ -50,30 +47,20 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
     setSelectedDays(new Set());
   };
 
-  const openCopyPopover = (d: number) => {
-    const btn = copyBtnRefs.current[d];
-    if (!btn) return;
-    setCopySource(d);
-    setAnchorRect(btn.getBoundingClientRect());
-  };
-
-  const handlePaste = (target: number) => {
-    if (copySource === null || !onCopyDay) return;
-    onCopyDay(copySource, target);
-    setCopySource(null);
-    setAnchorRect(null);
+  const handleDayHeaderClick = (d: number) => {
+    if (copySource === null) {
+      toggleDaySelection(d);
+    } else if (d !== copySource) {
+      // paste immediately
+      onCopyDay?.(copySource, d);
+      setCopySource(null);
+    }
   };
 
   const handlePasteAll = () => {
-    if (copySource === null || !onCopyDay) return;
-    [0, 1, 2, 3, 4, 5, 6].filter((d) => d !== copySource).forEach((d) => onCopyDay(copySource, d));
+    if (copySource === null) return;
+    [0, 1, 2, 3, 4, 5, 6].filter((d) => d !== copySource).forEach((d) => onCopyDay?.(copySource, d));
     setCopySource(null);
-    setAnchorRect(null);
-  };
-
-  const closePopover = () => {
-    setCopySource(null);
-    setAnchorRect(null);
   };
 
   const allSelected  = selectedDays.size === 7;
@@ -117,6 +104,27 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
         </div>
       </div>
 
+      {/* ── Copy mode banner ─────────────────────────────────────────────────── */}
+      {copySource !== null && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <span className="text-xs text-blue-700 font-medium">
+            📋 <strong>{DAY_LABELS[copySource]}</strong> copié — cliquez sur un jour pour coller
+          </span>
+          <button
+            onClick={handlePasteAll}
+            className="ml-auto text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-medium hover:bg-blue-700 transition-colors shrink-0"
+          >
+            Coller partout
+          </button>
+          <button
+            onClick={() => setCopySource(null)}
+            className="text-xs text-blue-400 hover:text-blue-600 transition-colors shrink-0"
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
       {/* ── Grid ─────────────────────────────────────────────────────────────── */}
       <div className="overflow-x-auto">
         <div
@@ -128,14 +136,18 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
           {DAY_LABELS.map((day, d) => {
             const isSelected   = selectedDays.has(d);
             const isCopySource = copySource === d;
+            const isPasteTarget = copySource !== null && d !== copySource;
+
             return (
               <div key={day} className="text-center pb-1">
                 <div className="flex items-center justify-center gap-0.5">
                   <button
-                    onClick={() => toggleDaySelection(d)}
+                    onClick={() => handleDayHeaderClick(d)}
                     className={`text-xs font-semibold py-0.5 px-1.5 rounded transition-colors ${
                       isCopySource
-                        ? 'text-blue-600 bg-blue-100'
+                        ? 'bg-blue-200 text-blue-800 ring-2 ring-blue-400'
+                        : isPasteTarget
+                        ? 'bg-blue-500 text-white hover:bg-blue-600'
                         : isSelected
                         ? 'bg-blue-100 text-blue-700'
                         : d === currentDay
@@ -144,18 +156,23 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
                     }`}
                   >
                     {day}
-                    {isSelected && (
+                    {isCopySource && (
+                      <span className="block mx-auto mt-0.5 text-[8px] leading-none">⎘</span>
+                    )}
+                    {isPasteTarget && (
+                      <span className="block mx-auto mt-0.5 text-[8px] leading-none">↓</span>
+                    )}
+                    {!isCopySource && !isPasteTarget && isSelected && (
                       <span className="block mx-auto mt-0.5 text-blue-600 text-[8px] leading-none">✓</span>
                     )}
-                    {!isSelected && d === currentDay && copySource === null && (
+                    {!isCopySource && !isPasteTarget && !isSelected && d === currentDay && (
                       <span className="block mx-auto mt-0.5 w-1 h-1 rounded-full bg-blue-500" />
                     )}
                   </button>
-                  {onCopyDay && (
+                  {onCopyDay && !isPasteTarget && (
                     <button
-                      ref={(el) => { copyBtnRefs.current[d] = el; }}
-                      onClick={() => isCopySource ? closePopover() : openCopyPopover(d)}
-                      title={isCopySource ? 'Fermer' : `Copier ${day}`}
+                      onClick={() => isCopySource ? setCopySource(null) : setCopySource(d)}
+                      title={isCopySource ? 'Annuler la copie' : `Copier ${day}`}
                       className={`text-[11px] px-0.5 rounded transition-colors leading-none ${
                         isCopySource ? 'text-blue-600' : 'text-gray-300 hover:text-gray-500'
                       }`}
@@ -213,17 +230,6 @@ export function ScheduleGrid({ schedule, onCellChange, onCopyDay, onApplyPreset 
         </span>
         <span className="text-gray-400 italic">Cliquer sur une case pour changer · ⎘ pour copier un jour</span>
       </div>
-
-      {/* ── Copy popover ─────────────────────────────────────────────────────── */}
-      {copySource !== null && anchorRect && (
-        <CopyDayPopover
-          sourceDay={copySource}
-          anchorRect={anchorRect}
-          onPaste={handlePaste}
-          onPasteAll={handlePasteAll}
-          onClose={closePopover}
-        />
-      )}
     </div>
   );
 }
